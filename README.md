@@ -187,6 +187,54 @@ The web service additionally gets `PORT` injected automatically by Railway.
 > Note: for the MVP the app creates tables on startup (`init_db`). For schema
 > changes over time, move to Alembic migrations.
 
+## Two environments: local dev vs cloud prod
+
+A WhatsApp number's webhook can point to only **one** URL at a time. Production
+points at Railway, so you can't also have Meta deliver to your laptop on the same
+number. Here's how the two environments stay separate.
+
+### Config is environment-driven (no code changes)
+
+The same code runs in both places; only the env vars differ:
+
+| Setting | Local (dev) | Cloud (prod) |
+|---|---|---|
+| `DATABASE_URL` | `sqlite:///./shopping.db` | Railway Postgres |
+| `QUEUE_BACKEND` | `memory` (worker in-process) | `redis` (separate worker) |
+| WhatsApp creds | dev Meta app (optional) | prod Meta app |
+
+Local reads `.env`; Railway reads its own Variables.
+
+### Iterate locally WITHOUT WhatsApp (fast loop)
+
+Most development never needs a live WhatsApp connection:
+
+```bash
+# 1. Test the Hebrew parser directly (calls Claude, no WhatsApp)
+python scripts/try_parser.py "תביא חלב וגבינה"
+
+# 2. Run the server locally (QUEUE_BACKEND=memory -> no Redis/worker needed)
+uvicorn app.main:app --port 8000
+
+# 3. Simulate WhatsApp events with a correctly-signed local POST:
+python scripts/simulate_webhook.py "תביא חלב וגבינה"   # text message
+python scripts/simulate_webhook.py "רשימה"             # view the list
+python scripts/simulate_webhook.py --buy 3 --title חלב  # tap a list row (mark bought)
+python scripts/simulate_webhook.py --button cmd:clear   # tap a button
+```
+
+`simulate_webhook.py` builds a realistic payload and signs it with your local
+`WA_APP_SECRET`, so it goes through the exact same path Meta's real webhook would.
+Watch the server logs to see it processed.
+
+### Live local testing (optional)
+
+When you specifically want a true end-to-end WhatsApp test on your laptop, create
+a **second Meta app** (e.g. `shopping-bot-dev`) with its own test number, point its
+webhook at your **ngrok** URL, and put its credentials in your local `.env`. Prod
+(Railway, real number) is untouched. You message the dev test number while
+developing, the prod number for real use.
+
 ## Roadmap
 
 - **Next:** onboarding flow — create a family, invite your partner via code.
