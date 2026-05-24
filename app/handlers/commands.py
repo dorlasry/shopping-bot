@@ -32,3 +32,17 @@ def enqueue_callback(queue: MessageQueue, update, kind: JobKind) -> None:
             callback_data=update.data or "",
         )
     )
+
+
+def enqueue_audio(queue: MessageQueue, msg) -> None:
+    """Enqueue a voice note for transcription + processing in the worker."""
+    queue.enqueue(
+        IncomingJob(
+            kind="audio",
+            phone=msg.from_user.wa_id,
+            name=msg.from_user.name or "",
+            message_id=msg.id,
+            media_id=msg.audio.id,
+            mime_type=getattr(msg.audio, "mime_type", "audio/ogg"),
+        )
+    )

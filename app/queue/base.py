@@ -12,7 +12,7 @@ from abc import ABC, abstractmethod
 from dataclasses import asdict, dataclass
 from typing import Literal
 
-JobKind = Literal["message", "selection", "button"]
+JobKind = Literal["message", "selection", "button", "audio"]
 
 
 @dataclass
@@ -25,6 +25,9 @@ class IncomingJob:
     text: str | None = None
     # Present for kind in ("selection", "button"):
     callback_data: str | None = None
+    # Present for kind == "audio" (a voice note):
+    media_id: str | None = None
+    mime_type: str | None = None
 
     def to_json(self) -> str:
         return json.dumps(asdict(self), ensure_ascii=False)

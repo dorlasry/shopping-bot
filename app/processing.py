@@ -14,13 +14,16 @@ from __future__ import annotations
 from pywa import WhatsApp
 from sqlalchemy.orm import Session
 
+from app.config import settings
 from app.db import repository as repo
 from app.db.session import get_session
 from app.domain.models import User
 from app.logging_config import get_logger
 from app.queue.base import IncomingJob
+from app.services import transcription
 from app.services import whatsapp as wa_msg
 from app.services.lists import HELP_TEXT, handle_intent
+from app.services.media import download_media
 from app.services.parser import parse_message
 
 logger = get_logger(__name__)
@@ -29,6 +32,8 @@ logger = get_logger(__name__)
 def process_job(wa: WhatsApp, job: IncomingJob) -> None:
     if job.kind == "message":
         _process_message(wa, job)
+    elif job.kind == "audio":
+        _process_audio(wa, job)
     elif job.kind == "selection":
         _process_selection(wa, job)
     elif job.kind == "button":
@@ -41,15 +46,49 @@ def process_job(wa: WhatsApp, job: IncomingJob) -> None:
 
 
 def _process_message(wa: WhatsApp, job: IncomingJob) -> None:
+    _handle_text(wa, job.phone, job.name, job.text or "")
+
+
+def _process_audio(wa: WhatsApp, job: IncomingJob) -> None:
+    """Voice note: download → transcribe (Hebrew) → process as if it were text."""
+    if not transcription.is_enabled():
+        wa.send_message(
+            to=job.phone, text="זיהוי קולי עדיין לא מוגדר 🙏 נסו לכתוב הודעת טקסט."
+        )
+        return
+    if not job.media_id:
+        return
+
+    try:
+        audio_bytes, mime_type = download_media(job.media_id)
+        transcript = transcription.transcribe(audio_bytes, mime_type)
+    except Exception:  # noqa: BLE001 — a bad recording must not crash the worker
+        logger.exception("voice transcription failed for %s", job.message_id)
+        wa.send_message(
+            to=job.phone, text="לא הצלחתי להבין את ההקלטה 🎤 נסו שוב או כתבו טקסט."
+        )
+        return
+
+    if not transcript:
+        wa.send_message(to=job.phone, text="לא שמעתי כלום בהקלטה 🤔 נסו שוב.")
+        return
+
+    # Echo what we heard so the user can catch any mis-transcription, then act.
+    wa.send_message(to=job.phone, text=f"🎤 שמעתי: {transcript}")
+    _handle_text(wa, job.phone, job.name, transcript)
+
+
+def _handle_text(wa: WhatsApp, phone: str, name: str, text: str) -> None:
+    """Core text pipeline, shared by typed messages and transcribed voice notes."""
     # Parse OUTSIDE the DB session (network call to Claude).
-    intent = parse_message(job.text or "")
+    intent = parse_message(text)
     with get_session() as session:
-        user = repo.get_or_create_user(session, job.phone, job.name)
+        user = repo.get_or_create_user(session, phone, name)
         result = handle_intent(session, user, intent)
         if result.reply_text:
-            wa.send_message(to=job.phone, text=result.reply_text)
+            wa.send_message(to=phone, text=result.reply_text)
         if result.show_list:
-            _send_list(wa, job.phone, session, user)
+            _send_list(wa, phone, session, user)
 
 
 def _process_selection(wa: WhatsApp, job: IncomingJob) -> None:

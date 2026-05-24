@@ -25,6 +25,10 @@ class Settings(BaseSettings):
     anthropic_api_key: str
     claude_model: str = "claude-sonnet-4-6"
 
+    # OpenAI Whisper (voice-to-text). Optional: leave empty to disable voice notes.
+    openai_api_key: str = ""
+    whisper_model: str = "whisper-1"
+
     # Database — SQLite by default (zero setup); swap the URL for Postgres in prod.
     database_url: str = "sqlite:///./shopping.db"
 

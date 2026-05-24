@@ -12,6 +12,8 @@ Built with **FastAPI + pywa + Claude + SQLAlchemy**.
 - Each person chats with the bot 1:1 (WhatsApp Cloud API has no group support).
 - The list lives **server-side, shared per family** — both partners see the same list.
 - Free-text Hebrew is parsed by **Claude** into structured intents (add / remove / view / clear).
+- **Voice notes** are transcribed to Hebrew with **OpenAI Whisper**, then run through
+  the exact same parser — so "תביא חלב" works spoken or typed.
 - "View & mark bought" uses a WhatsApp **interactive list message**: tap a row to mark it.
 - Incoming events go through a **message queue** (producer/worker split), so the
   webhook ACKs Meta instantly and the slow work (Claude + DB) happens on a worker.
@@ -125,6 +127,7 @@ the steps are identical.
 | You send | Bot does |
 |---|---|
 | `תביא חלב` / `צריך לחם` | adds items |
+| 🎤 a voice note ("תביא חלב וגבינה") | transcribed, then handled like text |
 | `תוריד את החלב` | removes items |
 | `רשימה` / `מה יש` | shows the interactive list |
 | `נקה` | clears bought items |
@@ -178,6 +181,7 @@ What changes vs. local:
 | `WA_APP_SECRET` | Meta → App settings → Basic |
 | `ANTHROPIC_API_KEY` | console.anthropic.com |
 | `CLAUDE_MODEL` | `claude-haiku-4-5-20251001` |
+| `OPENAI_API_KEY` | platform.openai.com (for voice notes; optional) |
 | `QUEUE_BACKEND` | `redis` |
 | `DATABASE_URL` | `${{Postgres.DATABASE_URL}}` |
 | `REDIS_URL` | `${{Redis.REDIS_URL}}` |
