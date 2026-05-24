@@ -33,8 +33,8 @@ Return ONLY a JSON object, no prose, with this exact shape:
 {"action": "<action>", "items": ["<item>", ...]}
 
 Valid actions:
-- "add": user wants to add items to the list (e.g. "תביא חלב", "צריך לחם", "תוסיף ביצים")
-- "remove": user wants to remove items (e.g. "תוריד את החלב", "מחק ביצים")
+- "add": user wants to add items to the list (e.g. "תביא חלב", "צריך לחם", "תוסיף ביצים", "תקנה גבינה")
+- "remove": user wants to remove items (e.g. "תוריד את החלב", "מחק ביצים", "תמחק חלב", "הסר לחם", "כבר לא צריך עגבניות")
 - "view": user wants to see the list (e.g. "מה יש", "רשימה", "תראה לי")
 - "clear": user wants to clear/empty the bought items or list (e.g. "נקה", "תרוקן")
 - "greeting": a greeting or small talk with no list action. Greetings may be in \

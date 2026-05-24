@@ -130,8 +130,65 @@ the steps are identical.
 | `נקה` | clears bought items |
 | `עזרה` | help |
 
+## Deploying to Railway (always-on, no ngrok)
+
+Running on Railway gives you a **permanent HTTPS URL** (so you set Meta's callback
+once and never touch ngrok again) and **managed Postgres + Redis**. The app runs
+as **two services from the same repo**: a `web` (webhook producer) and a `worker`
+(queue consumer).
+
+What changes vs. local:
+- **No ngrok** — the web service gets a fixed public domain.
+- **SQLite → Postgres** — platform disks are ephemeral, so list data must live in
+  managed Postgres. The code auto-normalizes the `DATABASE_URL` Railway provides.
+- **Redis** — a managed add-on; set `REDIS_URL`.
+
+### Steps
+
+1. **Push the repo to GitHub** (public or private — Railway can access private repos).
+
+2. **Create the project + web service:** Railway → **New Project → Deploy from
+   GitHub repo** → pick `shopping-bot`. Railway builds from the `Dockerfile`.
+
+3. **Add managed databases:** in the project, **New → Database → PostgreSQL**, then
+   **New → Database → Redis**.
+
+4. **Configure the WEB service:**
+   - Settings → **Networking → Generate Domain** (this is your permanent URL).
+   - Settings → **Start command** (if not using the Dockerfile default):
+     `uvicorn app.main:app --host 0.0.0.0 --port $PORT`
+   - Variables (see table below). For `DATABASE_URL` and `REDIS_URL`, use Railway
+     references: `${{Postgres.DATABASE_URL}}` and `${{Redis.REDIS_URL}}`.
+
+5. **Add the WORKER service:** **New → GitHub Repo** (same repo) → in its Settings
+   set **Start command** to `python -m app.worker`. Give it the **same variables**
+   as the web service. It needs **no** public domain.
+
+6. **Point Meta at the permanent URL:** WhatsApp → Configuration → Callback URL =
+   `https://<your-web-domain>/`, verify token = `WA_VERIFY_TOKEN`, subscribe to
+   `messages`. Done once — it never changes again.
+
+### Environment variables (set on BOTH services)
+
+| Variable | Value |
+|---|---|
+| `WA_PHONE_ID` | from Meta API Setup |
+| `WA_TOKEN` | your permanent System User token |
+| `WA_VERIFY_TOKEN` | your chosen verify string |
+| `WA_APP_SECRET` | Meta → App settings → Basic |
+| `ANTHROPIC_API_KEY` | console.anthropic.com |
+| `CLAUDE_MODEL` | `claude-haiku-4-5-20251001` |
+| `QUEUE_BACKEND` | `redis` |
+| `DATABASE_URL` | `${{Postgres.DATABASE_URL}}` |
+| `REDIS_URL` | `${{Redis.REDIS_URL}}` |
+
+The web service additionally gets `PORT` injected automatically by Railway.
+
+> Note: for the MVP the app creates tables on startup (`init_db`). For schema
+> changes over time, move to Alembic migrations.
+
 ## Roadmap
 
 - **Next:** onboarding flow — create a family, invite your partner via code.
 - Later: categories & smart aisle grouping, recurring items, reliable
-  notifications via message templates, multi-family at scale, Postgres + Alembic.
+  notifications via message templates, multi-family at scale, Alembic migrations.

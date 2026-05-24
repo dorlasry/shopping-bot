@@ -14,16 +14,32 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from app.config import settings
 
+def _normalize_db_url(url: str) -> str:
+    """Make managed-Postgres URLs work with the psycopg (v3) driver.
+
+    Hosts like Railway/Render/Heroku hand out `postgres://` or `postgresql://`
+    URLs, but SQLAlchemy needs the driver spelled out for psycopg 3:
+    `postgresql+psycopg://`. Normalizing here means the platform's DATABASE_URL
+    works as-is with no manual editing.
+    """
+    if url.startswith("postgres://"):
+        return "postgresql+psycopg://" + url[len("postgres://"):]
+    if url.startswith("postgresql://"):
+        return "postgresql+psycopg://" + url[len("postgresql://"):]
+    return url
+
+
+_db_url = _normalize_db_url(settings.database_url)
+
 # SQLite needs check_same_thread=False because FastAPI may touch the session
-# from different threadpool threads. Harmless for other backends.
-_connect_args = (
-    {"check_same_thread": False} if settings.database_url.startswith("sqlite") else {}
-)
+# from different threadpool threads. Harmless/irrelevant for Postgres.
+_connect_args = {"check_same_thread": False} if _db_url.startswith("sqlite") else {}
 
 engine = create_engine(
-    settings.database_url,
+    _db_url,
     echo=False,
     future=True,
+    pool_pre_ping=True,  # transparently recover dropped Postgres connections
     connect_args=_connect_args,
 )
 

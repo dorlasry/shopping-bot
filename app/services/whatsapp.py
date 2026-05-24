@@ -30,6 +30,16 @@ def build_list_message(items: list[Item]) -> tuple[str, SectionList | None]:
         return "הרשימה ריקה 🎉", None
 
     shown = items[:MAX_ROWS]
+
+    # Render the items as a numbered list directly in the message body so both
+    # partners can read the whole list at a glance — without opening the menu.
+    lines = [f"{idx}. {item.text}" for idx, item in enumerate(shown, start=1)]
+    body = "🛒 הרשימה שלכם:\n" + "\n".join(lines)
+    if len(items) > MAX_ROWS:
+        body += f"\n\n(מוצגים {MAX_ROWS} מתוך {len(items)} פריטים)"
+    body += "\n\nהקישו על הכפתור למטה כדי לסמן מה שכבר נקנה 👇"
+
+    # The interactive list (tap a row to mark bought) stays as well.
     rows = [
         SectionRow(
             title=_truncate(item.text, 24),
@@ -39,10 +49,6 @@ def build_list_message(items: list[Item]) -> tuple[str, SectionList | None]:
         for item in shown
     ]
     section = Section(title="לקנות", rows=rows)
-
-    body = "🛒 הרשימה שלכם:"
-    if len(items) > MAX_ROWS:
-        body += f"\n(מוצגים {MAX_ROWS} מתוך {len(items)} — נקו או סמנו כדי לראות עוד)"
 
     return body, SectionList(button_title=LIST_BUTTON_TITLE, sections=[section])
 
