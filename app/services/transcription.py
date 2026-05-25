@@ -16,6 +16,18 @@ from app.logging_config import get_logger
 
 logger = get_logger(__name__)
 
+# Biasing prompt: Whisper uses this as context to spell domain words correctly.
+# Listing common Hebrew grocery terms + command verbs sharply reduces errors on
+# "difficult words" (brand names, less-common produce, etc.).
+_VOCAB_PROMPT = (
+    "הודעה לרשימת קניות בעברית. "
+    "מילים נפוצות: חלב, גבינה, לחם, ביצים, חמאה, יוגורט, קוטג', שמנת, "
+    "עגבניות, מלפפון, בצל, שום, פלפל, תפוחי אדמה, גזר, חסה, לימון, "
+    "עוף, בשר, דגים, סלמון, אורז, פסטה, קמח, סוכר, מלח, שמן, "
+    "קפה, תה, מיץ, מים, שוקולד, ביסקוויטים, נייר טואלט, סבון. "
+    "פעלים: תביא, צריך, תוסיף, קניתי, קנינו, לקחתי, תמחק, תוריד."
+)
+
 
 def is_enabled() -> bool:
     """Voice transcription is only available when an OpenAI key is configured."""
@@ -34,6 +46,7 @@ def transcribe(audio_bytes: bytes, mime_type: str = "audio/ogg") -> str:
         model=settings.whisper_model,
         file=(f"voice.{ext}", audio_bytes),
         language="he",
+        prompt=_VOCAB_PROMPT,
     )
     text = (response.text or "").strip()
     logger.info("transcribed %d bytes -> %r", len(audio_bytes), text)

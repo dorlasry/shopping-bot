@@ -19,11 +19,15 @@ dependencies = [
 [project.optional-dependencies]
 dev = [
     "ruff>=0.7",
+    "pytest>=8.0",
 ]
 
 [tool.ruff]
 line-length = 100
 target-version = "py311"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
 
 [build-system]
 requires = ["hatchling"]

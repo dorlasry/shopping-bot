@@ -191,6 +191,18 @@ The web service additionally gets `PORT` injected automatically by Railway.
 > Note: for the MVP the app creates tables on startup (`init_db`). For schema
 > changes over time, move to Alembic migrations.
 
+## Tests
+
+Unit tests cover the repository and business logic (add / bought / bought_all /
+remove / clear / view / help / greeting / unknown, plus dedup and the shared
+family). They run against an in-memory SQLite database — no Postgres, Redis,
+Claude, or WhatsApp needed.
+
+```bash
+pip install -e ".[dev]"   # installs pytest
+pytest
+```
+
 ## Two environments: local dev vs cloud prod
 
 A WhatsApp number's webhook can point to only **one** URL at a time. Production

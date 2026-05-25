@@ -29,24 +29,26 @@ def build_list_message(items: list[Item]) -> tuple[str, SectionList | None]:
     if not items:
         return "הרשימה ריקה 🎉", None
 
-    shown = items[:MAX_ROWS]
-
-    # Render the items as a numbered list directly in the message body so both
-    # partners can read the whole list at a glance — without opening the menu.
-    lines = [f"{idx}. {item.text}" for idx, item in enumerate(shown, start=1)]
+    # Body shows EVERY item numbered, so the whole list is readable at a glance.
+    lines = [f"{idx}. {item.text}" for idx, item in enumerate(items, start=1)]
     body = "🛒 הרשימה שלכם:\n" + "\n".join(lines)
-    if len(items) > MAX_ROWS:
-        body += f"\n\n(מוצגים {MAX_ROWS} מתוך {len(items)} פריטים)"
-    body += "\n\nהקישו על הכפתור למטה כדי לסמן מה שכבר נקנה 👇"
 
-    # The interactive list (tap a row to mark bought) stays as well.
-    rows = [
-        SectionRow(
-            title=_truncate(item.text, 24),
-            callback_data=f"buy:{item.id}",
-            description="הקש כדי לסמן שנקנה",
+    # WhatsApp interactive lists cap at 10 rows, so only the first 10 are tappable.
+    # Items beyond that are still listed above and can be marked by voice/text.
+    tappable = items[:MAX_ROWS]
+    if len(items) > MAX_ROWS:
+        body += (
+            f"\n\nאפשר להקיש לסימון על {MAX_ROWS} הראשונים, "
+            'או פשוט לומר "קניתי <שם הפריט>" לכל פריט אחר.'
         )
-        for item in shown
+    else:
+        body += "\n\nהקישו על הכפתור למטה כדי לסמן מה שכבר נקנה 👇"
+
+    # No row description — WhatsApp echoes it into the user's selection bubble,
+    # which makes that confirmation look cluttered/redundant.
+    rows = [
+        SectionRow(title=_truncate(item.text, 24), callback_data=f"buy:{item.id}")
+        for item in tappable
     ]
     section = Section(title="לקנות", rows=rows)
 

@@ -80,6 +80,15 @@ def _process_audio(wa: WhatsApp, job: IncomingJob) -> None:
 
 def _handle_text(wa: WhatsApp, phone: str, name: str, text: str) -> None:
     """Core text pipeline, shared by typed messages and transcribed voice notes."""
+    # Unsupported message types (image, sticker, document) arrive with no text.
+    # Answer kindly instead of running an empty message through Claude.
+    if not text.strip():
+        wa.send_message(
+            to=phone,
+            text="אני קורא טקסט ומאזין להקלטות קוליות 🙂 כתבו או הקליטו מה להביא.",
+        )
+        return
+
     # Parse OUTSIDE the DB session (network call to Claude).
     intent = parse_message(text)
     with get_session() as session:
