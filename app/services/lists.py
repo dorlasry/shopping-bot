@@ -17,6 +17,7 @@ from app.domain.schemas import ParsedIntent
 HELP_TEXT = (
     "אני בוט רשימת קניות 🛒\n"
     "• כתבו לי מה להביא: “תביא חלב וגבינה”\n"
+    "• סימון שנקנה: “קניתי חלב וגבינה” (או “קניתי הכל”) ✓\n"
     "• להסרה: “תוריד את הביצים”\n"
     "• לצפייה: “רשימה” או “מה יש”\n"
     "• לניקוי שנקנה: “נקה”"
@@ -44,6 +45,23 @@ def handle_intent(session: Session, user: User, intent: ParsedIntent) -> ActionR
             names = ", ".join(i.text for i in created)
             return ActionResult(f"הוספתי: {names} ✅", show_list=True)
 
+        case "bought":
+            marked = repo.mark_items_bought_by_text(
+                session, active_list.id, user.id, intent.items
+            )
+            if not marked:
+                return ActionResult("לא מצאתי את הפריטים האלה ברשימה 🤔")
+            return ActionResult(f"סימנתי שנקנו: {', '.join(marked)} ✓", show_list=True)
+
+        case "bought_all":
+            marked = repo.mark_all_bought(session, active_list.id, user.id)
+            if not marked:
+                return ActionResult("הרשימה כבר ריקה 🎉")
+            return ActionResult(
+                f"כל הכבוד! סימנתי שהכל נקנה ✓ ({len(marked)} פריטים) 🎉",
+                show_list=True,
+            )
+
         case "remove":
             removed = repo.remove_items_by_text(session, active_list.id, intent.items)
             if not removed:
@@ -63,8 +81,9 @@ def handle_intent(session: Session, user: User, intent: ParsedIntent) -> ActionR
         case "greeting":
             return ActionResult(
                 "היי! 👋 אני בוט רשימת הקניות שלכם 🛒\n"
-                'כתבו לי מה להביא — למשל "תביא חלב וגבינה".\n'
-                'לצפייה ברשימה: "רשימה" • להסרה: "תמחק חלב".'
+                'כתבו (או הקליטו!) מה להביא — למשל "תביא חלב וגבינה".\n'
+                'כשקניתם, אמרו "קניתי חלב וגבינה" ואסמן ✓\n'
+                'לצפייה ברשימה: "רשימה".'
             )
 
         case "help":

@@ -33,8 +33,14 @@ Return ONLY a JSON object, no prose, with this exact shape:
 {"action": "<action>", "items": ["<item>", ...]}
 
 Valid actions:
-- "add": user wants to add items to the list (e.g. "תביא חלב", "צריך לחם", "תוסיף ביצים", "תקנה גבינה")
-- "remove": user wants to remove items (e.g. "תוריד את החלב", "מחק ביצים", "תמחק חלב", "הסר לחם", "כבר לא צריך עגבניות")
+- "add": user wants to add items to the list, i.e. things still NEEDED \
+(e.g. "תביא חלב", "צריך לחם", "תוסיף ביצים", "תקנה גבינה")
+- "bought": user reports they ALREADY bought/got SPECIFIC items — mark them as \
+purchased, do NOT delete them (e.g. "קניתי חלב", "קנינו גבינה ולחם", "כבר קניתי ביצים", "לקחתי עגבניות", "השגתי שמן")
+- "bought_all": user reports they bought EVERYTHING on the list, with no specific \
+items named (e.g. "קניתי הכל", "קנינו הכל", "לקחתי את הכל", "סיימתי את הקניות", "יש לי הכל"). items must be empty.
+- "remove": user wants to remove/cancel items from the list because they're no \
+longer wanted — NOT because they bought them (e.g. "תוריד את החלב", "מחק ביצים", "תמחק חלב", "הסר לחם", "כבר לא צריך עגבניות")
 - "view": user wants to see the list (e.g. "מה יש", "רשימה", "תראה לי")
 - "clear": user wants to clear/empty the bought items or list (e.g. "נקה", "תרוקן")
 - "greeting": a greeting or small talk with no list action. Greetings may be in \
@@ -45,7 +51,7 @@ Hebrew, English, or transliteration (e.g. "היי", "שלום", "hi", "hello", "
 Rules for items:
 - Extract clean singular item names without command words. "תביא חלב וגבינה" -> ["חלב", "גבינה"].
 - Strip leading articles like "את", "ה" where natural ("את הביצים" -> "ביצים").
-- For non add/remove actions, items must be an empty list.
+- Only add/remove/bought carry items; for all other actions, items must be an empty list.
 - Keep item text in the user's original language (usually Hebrew)."""
 
 
@@ -68,7 +74,7 @@ def parse_message(text: str) -> ParsedIntent:
         data = _extract_json(raw)
         intent = ParsedIntent.model_validate(data)
         # Defensive: clear items for actions that shouldn't carry any.
-        if intent.action not in ("add", "remove"):
+        if intent.action not in ("add", "remove", "bought"):
             intent.items = []
         return intent
     except Exception as exc:  # noqa: BLE001 — we want graceful degradation here

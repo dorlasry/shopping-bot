@@ -10,7 +10,9 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 # The set of things a user can intend with a message.
-Action = Literal["add", "remove", "view", "clear", "greeting", "help", "unknown"]
+Action = Literal[
+    "add", "remove", "bought", "bought_all", "view", "clear", "greeting", "help", "unknown"
+]
 
 
 class ParsedIntent(BaseModel):

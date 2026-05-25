@@ -143,6 +143,41 @@ def mark_item_bought(session: Session, item_id: int, bought_by_id: int) -> Item 
     return item
 
 
+def mark_items_bought_by_text(
+    session: Session, list_id: int, bought_by_id: int, texts: list[str]
+) -> list[str]:
+    """Mark needed items bought by matching their text (case-insensitive).
+
+    This powers the voice/text multi-mark: "קניתי חלב גבינה ולחם" marks all three
+    at once. Returns the names actually marked (so the caller can confirm them).
+    """
+    wanted = {t.strip().lower() for t in texts if t.strip()}
+    marked: list[str] = []
+    for item in get_needed_items(session, list_id):
+        if item.text.strip().lower() in wanted:
+            item.status = ItemStatus.BOUGHT
+            item.bought_by_id = bought_by_id
+            item.bought_at = datetime.now(timezone.utc)
+            marked.append(item.text)
+    session.flush()
+    return marked
+
+
+def mark_all_bought(session: Session, list_id: int, bought_by_id: int) -> list[str]:
+    """Mark every needed item on the list as bought (powers 'קניתי הכל').
+
+    Returns the names marked, so the caller can confirm and celebrate.
+    """
+    marked: list[str] = []
+    for item in get_needed_items(session, list_id):
+        item.status = ItemStatus.BOUGHT
+        item.bought_by_id = bought_by_id
+        item.bought_at = datetime.now(timezone.utc)
+        marked.append(item.text)
+    session.flush()
+    return marked
+
+
 def clear_bought(session: Session, list_id: int) -> int:
     """Delete all bought items from the list. Returns the count removed."""
     bought = session.scalars(
