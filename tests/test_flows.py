@@ -16,8 +16,24 @@ def test_build_items_payload_uses_text_as_id_and_title():
     }
 
 
+def test_build_items_payload_truncates_long_titles_but_keeps_full_id():
+    long_name = "א" * 40
+    payload = flows.build_items_payload([long_name])
+    entry = payload["items"][0]
+    assert entry["id"] == long_name
+    assert entry["title"] != long_name
+    assert len(entry["title"]) <= flows.MAX_TITLE_CHARS
+
+
 def test_build_items_payload_empty():
     assert flows.build_items_payload([]) == {"items": []}
+
+
+def test_max_past_items_matches_metas_checkbox_group_cap():
+    # Meta's Flow JSON component reference documents a hard 20-option cap on
+    # CheckboxGroup; sending more makes Meta reject the message outright, so
+    # this constant must never drift above it.
+    assert flows.MAX_PAST_ITEMS == 20
 
 
 def test_picked_items_from_list():

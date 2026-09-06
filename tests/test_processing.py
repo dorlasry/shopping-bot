@@ -307,6 +307,7 @@ def test_past_items_button_when_flow_not_configured(monkeypatch, session):
     processing.process_job(fake_wa, _past_items_job())
 
     assert len(fake_wa.sent) == 1
+    assert "עדיין לא מוכן" in fake_wa.sent[0]["text"]
     assert fake_wa.sent[0]["buttons"] == wa_msg.quick_command_buttons()
 
 

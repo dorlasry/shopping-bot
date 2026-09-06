@@ -25,14 +25,19 @@ from pywa.types.flows import (
     ScreenData,
 )
 
+from app.services.whatsapp import truncate
+
 SCREEN_ID = "PAST_ITEMS"
 ITEMS_KEY = "items"
 PICKED_FIELD = "picked"
 FORM_NAME = "past_items_form"
 
-# Purchase history is unbounded over time (a shopping list is not), so the
-# picker is capped to keep the message payload small.
-MAX_PAST_ITEMS = 30
+# Meta's Flow JSON component reference caps a CheckboxGroup at 20 options —
+# this isn't an arbitrary choice, sending more makes Meta reject the message.
+MAX_PAST_ITEMS = 20
+
+# Meta's documented CheckboxGroup option-title limit.
+MAX_TITLE_CHARS = 30
 
 SCREEN_TITLE = "פריטים קודמים"
 CHECKBOX_LABEL = "מה להוסיף לרשימה?"
@@ -81,9 +86,16 @@ def build_items_payload(texts: list[str]) -> dict:
     """The `flow_action_payload` that fills the checkbox at send time.
 
     The item text doubles as the option id, so the values the flow returns are
-    the texts themselves — nothing has to be remembered between messages.
+    the texts themselves — nothing has to be remembered between messages. The
+    title is truncated to Meta's CheckboxGroup limit, but the id keeps the
+    full text since that's what comes back in the completion and gets added
+    to the list.
     """
-    return {ITEMS_KEY: [{"id": text, "title": text} for text in texts]}
+    return {
+        ITEMS_KEY: [
+            {"id": text, "title": truncate(text, MAX_TITLE_CHARS)} for text in texts
+        ]
+    }
 
 
 def picked_items(response: dict | None) -> list[str]:

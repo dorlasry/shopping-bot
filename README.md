@@ -48,6 +48,7 @@ app/
     parser.py          Claude: Hebrew text -> ParsedIntent
     lists.py           business logic, orchestrates parser + repository
     whatsapp.py        builds pywa interactive messages from items
+    flows.py           the static past-items WhatsApp Flow + payload helpers
   queue/
     base.py            MessageQueue interface + IncomingJob payload
     redis_queue.py     Redis implementation (production)
@@ -61,6 +62,7 @@ app/
     commands.py        helpers: pywa update -> queue job
 scripts/
   try_parser.py        run the Hebrew parser locally, no WhatsApp needed
+  setup_flow.py        create/update the past-items Flow in your WhatsApp account
 ```
 
 ## The data model (onboarding-ready)
@@ -132,6 +134,7 @@ the steps are identical.
 | `רשימה` / `מה יש` | shows the interactive list |
 | `נקה` | clears bought items |
 | `עזרה` | help |
+| `פריטים קודמים` | opens the past-items picker (Flow) |
 
 ## Past-items picker (WhatsApp Flow)
 
@@ -143,9 +146,12 @@ there is no callback endpoint and no encryption keys to manage.
 
 ### One-time setup
 
-1. **Migrate the database.** Bought items are now kept as history instead of
-   being deleted, which needs a new column. `init_db()` only creates missing
-   tables, so run this once against your production Postgres:
+1. **Migrate the database — this is mandatory, not opt-in.** Bought items are
+   now kept as history instead of being deleted, which needs a new column.
+   Every query against `items` now selects `cleared`, and `init_db()` never
+   alters existing tables, so **run this before deploying the new code** — if
+   you don't, the app can't read the `items` table at all and every command
+   (add, list, buy, clear) breaks, not just this picker:
 
    ```sql
    ALTER TABLE items ADD COLUMN cleared BOOLEAN NOT NULL DEFAULT FALSE;
@@ -162,6 +168,10 @@ there is no callback endpoint and no encryption keys to manage.
    ```bash
    python scripts/setup_flow.py
    ```
+
+   Re-running this creates a *second* flow and fails on the duplicate name —
+   to push a changed screen to the existing flow, use
+   `python scripts/setup_flow.py --update FLOW_ID` instead.
 
 4. **Set `WA_PAST_ITEMS_FLOW_ID`** to that id on the worker service. Until it is
    set, the button replies that the feature isn't ready yet.
@@ -183,6 +193,10 @@ What changes vs. local:
 - **Redis** — a managed add-on; set `REDIS_URL`.
 
 ### Steps
+
+> Deploying to an existing database? Run the `items` migration first — see
+> "Migrate the database" under [Past-items picker](#past-items-picker-whatsapp-flow)
+> above. Skipping it breaks every command, not just the picker.
 
 1. **Push the repo to GitHub** (public or private — Railway can access private repos).
 
