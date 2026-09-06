@@ -20,7 +20,8 @@ HELP_TEXT = (
     "• סימון שנקנה: “קניתי חלב וגבינה” (או “קניתי הכל”) ✓\n"
     "• להסרה: “תוריד את הביצים”\n"
     "• לצפייה: “רשימה” או “מה יש”\n"
-    "• לניקוי שנקנה: “נקה”"
+    "• לניקוי שנקנה: “נקה”\n"
+    "• פריטים שקניתם בעבר: “פריטים קודמים”"
 )
 
 
@@ -32,6 +33,8 @@ class ActionResult:
     # When True, the handler should ALSO send the interactive list message so the
     # user can tap items to mark them bought.
     show_list: bool = False
+    # When True, the handler should send the past-items Flow instead.
+    show_past_items: bool = False
 
 
 def handle_intent(session: Session, user: User, intent: ParsedIntent) -> ActionResult:
@@ -77,6 +80,9 @@ def handle_intent(session: Session, user: User, intent: ParsedIntent) -> ActionR
         case "clear":
             count = repo.clear_bought(session, active_list.id)
             return ActionResult(f"ניקיתי {count} פריטים שנקנו. ✨", show_list=True)
+
+        case "past_items":
+            return ActionResult("", show_past_items=True)
 
         case "greeting":
             return ActionResult(

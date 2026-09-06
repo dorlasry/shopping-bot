@@ -43,6 +43,8 @@ items named (e.g. "קניתי הכל", "קנינו הכל", "לקחתי את ה�
 longer wanted — NOT because they bought them (e.g. "תוריד את החלב", "מחק ביצים", "תמחק חלב", "הסר לחם", "כבר לא צריך עגבניות")
 - "view": user wants to see the list (e.g. "מה יש", "רשימה", "תראה לי")
 - "clear": user wants to clear/empty the bought items or list (e.g. "נקה", "תרוקן")
+- "past_items": user wants to see things they bought in the PAST so they can add \
+some again (e.g. "פריטים קודמים", "מה קניתי בעבר", "היסטוריה", "תראה לי מה קניתי פעם"). items must be empty.
 - "greeting": a greeting or small talk with no list action. Greetings may be in \
 Hebrew, English, or transliteration (e.g. "היי", "שלום", "hi", "hello", "מה נשמע").
 - "help": user asks what the bot can do (e.g. "עזרה", "מה אתה יודע לעשות")
