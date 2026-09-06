@@ -21,6 +21,10 @@ class Settings(BaseSettings):
     wa_verify_token: str
     wa_app_secret: str
 
+    # WhatsApp Business Account ID. Only needed by scripts/setup_flow.py, which
+    # creates the past-items Flow; the bot itself does not use it.
+    wa_business_account_id: str = ""
+
     # Anthropic Claude
     anthropic_api_key: str
     claude_model: str = "claude-sonnet-4-6"

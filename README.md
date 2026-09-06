@@ -153,13 +153,17 @@ there is no callback endpoint and no encryption keys to manage.
 
    Fresh databases (and the test suite) get the column automatically.
 
-2. **Create the flow** and note the id it prints:
+2. **Set `WA_BUSINESS_ACCOUNT_ID`.** `scripts/setup_flow.py` needs your WhatsApp
+   Business Account ID to create a flow. Find it in Meta's WhatsApp Manager
+   (WhatsApp Accounts -> your account) and put it in `.env`.
+
+3. **Create the flow** and note the id it prints:
 
    ```bash
    python scripts/setup_flow.py
    ```
 
-3. **Set `WA_PAST_ITEMS_FLOW_ID`** to that id on the worker service. Until it is
+4. **Set `WA_PAST_ITEMS_FLOW_ID`** to that id on the worker service. Until it is
    set, the button replies that the feature isn't ready yet.
 
 The flow is created as a draft and sent with `mode=draft`, so only people with a
@@ -218,6 +222,7 @@ What changes vs. local:
 | `DATABASE_URL` | `${{Postgres.DATABASE_URL}}` |
 | `REDIS_URL` | `${{Redis.REDIS_URL}}` |
 | `WA_PAST_ITEMS_FLOW_ID` | flow id from `scripts/setup_flow.py` (worker only) |
+| `WA_BUSINESS_ACCOUNT_ID` | Meta's WhatsApp Manager -> WhatsApp Accounts (only needed to run `scripts/setup_flow.py`; not used by the running services) |
 
 The web service additionally gets `PORT` injected automatically by Railway.
 

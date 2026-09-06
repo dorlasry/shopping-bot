@@ -24,13 +24,23 @@ def main() -> None:
     parser.add_argument("--update", metavar="FLOW_ID", help="update an existing flow")
     args = parser.parse_args()
 
-    wa = WhatsApp(phone_id=settings.wa_phone_id, token=settings.wa_token)
+    wa = WhatsApp(
+        phone_id=settings.wa_phone_id,
+        token=settings.wa_token,
+        business_account_id=settings.wa_business_account_id or None,
+    )
     flow_json = build_flow_json()
 
     if args.update:
         result = wa.update_flow_json(flow_id=args.update, flow_json=flow_json)
         print(f"updated flow {args.update}: {result}")
         return
+
+    if not settings.wa_business_account_id:
+        raise SystemExit(
+            "WA_BUSINESS_ACCOUNT_ID is not set. Find it in Meta's WhatsApp Manager "
+            "(WhatsApp Accounts -> your account) and set it before creating a flow."
+        )
 
     created = wa.create_flow(
         name="past-items",
