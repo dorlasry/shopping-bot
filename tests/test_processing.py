@@ -13,6 +13,7 @@ import pytest
 from pywa.types import FlowButton, SectionList
 
 from app import processing
+from app.db import repository as repo
 from app.domain.schemas import ParsedIntent
 from app.queue.base import IncomingJob
 from app.services import whatsapp as wa_msg
@@ -306,4 +307,38 @@ def test_past_items_button_when_flow_not_configured(monkeypatch, session):
     processing.process_job(fake_wa, _past_items_job())
 
     assert len(fake_wa.sent) == 1
+    assert fake_wa.sent[0]["buttons"] == wa_msg.quick_command_buttons()
+
+
+def _completion_job(picked, phone="972500000021", message_id="wamid.21"):
+    return IncomingJob(
+        kind="flow_completion",
+        phone=phone,
+        name="Tester",
+        message_id=message_id,
+        picked=picked,
+    )
+
+
+def test_flow_completion_adds_picked_items(session):
+    fake_wa = FakeWhatsApp()
+
+    processing.process_job(fake_wa, _completion_job(["חלב", "גבינה"]))
+
+    assert "הוספתי" in fake_wa.sent[0]["text"]
+    assert fake_wa.sent[0]["buttons"] is None  # the list message follows
+    assert isinstance(fake_wa.sent[1]["buttons"], SectionList)
+
+    user = repo.get_or_create_user(session, "972500000021", "Tester")
+    lst = repo.get_active_list(session, user.family_id)
+    assert {i.text for i in repo.get_needed_items(session, lst.id)} == {"חלב", "גבינה"}
+
+
+def test_flow_completion_with_nothing_picked(session):
+    fake_wa = FakeWhatsApp()
+
+    processing.process_job(fake_wa, _completion_job([]))
+
+    assert len(fake_wa.sent) == 1
+    assert "לא נבחרו" in fake_wa.sent[0]["text"]
     assert fake_wa.sent[0]["buttons"] == wa_msg.quick_command_buttons()

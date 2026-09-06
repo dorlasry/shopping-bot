@@ -20,6 +20,7 @@ from app.config import settings
 from app.db import repository as repo
 from app.db.session import get_session
 from app.domain.models import User
+from app.domain.schemas import ParsedIntent
 from app.logging_config import get_logger
 from app.queue.base import IncomingJob
 from app.services import flows as flow_msg
@@ -42,6 +43,8 @@ def process_job(wa: WhatsApp, job: IncomingJob) -> None:
         _process_selection(wa, job)
     elif job.kind == "button":
         _process_button(wa, job)
+    elif job.kind == "flow_completion":
+        _process_flow_completion(wa, job)
     else:  # pragma: no cover - defensive
         logger.warning("unknown job kind: %r", job.kind)
 
@@ -145,6 +148,23 @@ def _process_button(wa: WhatsApp, job: IncomingJob) -> None:
             _send_past_items(wa, job.phone, session, user)
         else:
             logger.warning("unknown command button: %r", data)
+
+
+def _process_flow_completion(wa: WhatsApp, job: IncomingJob) -> None:
+    """Add the items the user ticked in the past-items flow.
+
+    Routed through the normal `add` intent so it reuses the existing
+    confirmation text, duplicate guard, and list refresh.
+    """
+    picked = job.picked or []
+    if not picked:
+        _send_final(wa, job.phone, "לא נבחרו פריטים 🤷")
+        return
+
+    with get_session() as session:
+        user = repo.get_or_create_user(session, job.phone, job.name)
+        result = handle_intent(session, user, ParsedIntent(action="add", items=picked))
+        _deliver(wa, job.phone, session, user, result)
 
 
 # --- helpers ---------------------------------------------------------------
