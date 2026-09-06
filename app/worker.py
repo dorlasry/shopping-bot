@@ -39,14 +39,14 @@ def consume_loop(
     while should_continue():
         try:
             job = queue.dequeue(timeout=5)
+            if job is None:
+                continue  # timeout — loop again so we can check should_continue()
+            if queue.seen(job.message_id):
+                logger.info("skipping duplicate message %s", job.message_id)
+                continue
         except Exception:  # noqa: BLE001 — a transient connection blip must not kill the worker
-            logger.exception("dequeue failed, retrying")
+            logger.exception("dequeue/dedup failed, retrying")
             time.sleep(_DEQUEUE_ERROR_BACKOFF_SECONDS)
-            continue
-        if job is None:
-            continue  # timeout — loop again so we can check should_continue()
-        if queue.seen(job.message_id):
-            logger.info("skipping duplicate message %s", job.message_id)
             continue
         try:
             process_job(wa, job)
