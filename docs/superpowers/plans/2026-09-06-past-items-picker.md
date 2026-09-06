@@ -778,14 +778,34 @@ from pywa.types.flows import FlowActionType, FlowStatus
 from app.services import flows as flow_msg
 ```
 
-Add the `show_past_items` branch in `_handle_text`, replacing its final two lines:
+Extract the "send an ActionResult" block out of `_handle_text` so Task 6 can reuse it rather than copy it. Replace everything in `_handle_text` from `result = handle_intent(...)` to the end with:
 
 ```python
-        if result.show_list:
-            _send_list(wa, phone, session, user)
-        if result.show_past_items:
-            _send_past_items(wa, phone, session, user)
+        result = handle_intent(session, user, intent)
+        _deliver(wa, phone, session, user, result)
 ```
+
+and add this helper next to `_send_list`:
+
+```python
+def _deliver(
+    wa: WhatsApp, phone: str, session: Session, user: User, result: ActionResult
+) -> None:
+    """Send an ActionResult: its text, then whatever follow-up it asks for."""
+    if result.reply_text:
+        # An interactive message follows only when show_list/show_past_items is
+        # set — skip the quick buttons then, so we never send two in a row.
+        if result.show_list or result.show_past_items:
+            wa.send_message(to=phone, text=result.reply_text)
+        else:
+            _send_final(wa, phone, result.reply_text)
+    if result.show_list:
+        _send_list(wa, phone, session, user)
+    if result.show_past_items:
+        _send_past_items(wa, phone, session, user)
+```
+
+Update the `lists` import to bring in the type: `from app.services.lists import HELP_TEXT, ActionResult, handle_intent`.
 
 Add the `cmd:past_items` branch in `_process_button`, directly after the `cmd:list` branch:
 
@@ -1011,14 +1031,10 @@ def _process_flow_completion(wa: WhatsApp, job: IncomingJob) -> None:
     with get_session() as session:
         user = repo.get_or_create_user(session, job.phone, job.name)
         result = handle_intent(session, user, ParsedIntent(action="add", items=picked))
-        if result.reply_text:
-            if result.show_list:
-                wa.send_message(to=job.phone, text=result.reply_text)
-            else:
-                _send_final(wa, job.phone, result.reply_text)
-        if result.show_list:
-            _send_list(wa, job.phone, session, user)
+        _deliver(wa, job.phone, session, user, result)
 ```
+
+`_deliver` was extracted in Task 5, so this task adds no duplicated send logic.
 
 Add `from app.domain.schemas import ParsedIntent` to the imports.
 
