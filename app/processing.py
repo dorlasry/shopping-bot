@@ -30,6 +30,7 @@ logger = get_logger(__name__)
 
 
 def process_job(wa: WhatsApp, job: IncomingJob) -> None:
+    _indicate_typing(wa, job)
     if job.kind == "message":
         _process_message(wa, job)
     elif job.kind == "audio":
@@ -40,6 +41,18 @@ def process_job(wa: WhatsApp, job: IncomingJob) -> None:
         _process_button(wa, job)
     else:  # pragma: no cover - defensive
         logger.warning("unknown job kind: %r", job.kind)
+
+
+def _indicate_typing(wa: WhatsApp, job: IncomingJob) -> None:
+    """Mark the incoming message read and show a typing bubble.
+
+    Best-effort only: WhatsApp auto-dismisses this when we send our reply (or
+    after 25s), and a failure here must never block real job processing.
+    """
+    try:
+        wa.indicate_typing(message_id=job.message_id)
+    except Exception:  # noqa: BLE001 — cosmetic only, never fatal
+        logger.warning("indicate_typing failed for %s", job.message_id)
 
 
 # --- per-kind handlers -----------------------------------------------------
