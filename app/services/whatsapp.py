@@ -56,10 +56,9 @@ def build_list_message(items: list[Item]) -> tuple[str, SectionList | None]:
 
 
 def quick_command_buttons() -> list[Button]:
-    """Three reply buttons for the common actions."""
+    """Reply buttons for the common actions."""
     return [
         Button(title="רשימה", callback_data="cmd:list"),
-        Button(title="נקה", callback_data="cmd:clear"),
         Button(title="עזרה", callback_data="cmd:help"),
     ]
 
