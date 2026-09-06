@@ -10,10 +10,13 @@ from __future__ import annotations
 import contextlib
 
 import pytest
+from pywa.types import SectionList
 
 from app import processing
+from app.db import repository as repo
 from app.domain.schemas import ParsedIntent
 from app.queue.base import IncomingJob
+from app.services import whatsapp as wa_msg
 from app.services.lists import HELP_TEXT
 
 
@@ -128,3 +131,106 @@ def test_indicate_typing_failure_does_not_block_reply(monkeypatch, session):
     assert len(fake_wa.sent) == 1
     assert fake_wa.sent[0]["to"] == "972500000005"
     assert fake_wa.sent[0]["text"] == HELP_TEXT
+
+
+def test_help_button_gets_quick_buttons(session):
+    fake_wa = FakeWhatsApp()
+    job = IncomingJob(
+        kind="button",
+        phone="972500000006",
+        name="Tester",
+        message_id="wamid.6",
+        callback_data="cmd:help",
+    )
+
+    processing.process_job(fake_wa, job)
+
+    assert fake_wa.sent == [
+        {
+            "to": "972500000006",
+            "text": HELP_TEXT,
+            "buttons": wa_msg.quick_command_buttons(),
+        }
+    ]
+
+
+def test_stale_selection_gets_quick_buttons(session):
+    fake_wa = FakeWhatsApp()
+    job = IncomingJob(
+        kind="selection",
+        phone="972500000007",
+        name="Tester",
+        message_id="wamid.7",
+        callback_data="buy:9999",
+    )
+
+    processing.process_job(fake_wa, job)
+
+    assert fake_wa.sent == [
+        {
+            "to": "972500000007",
+            "text": "הפריט כבר לא קיים ברשימה.",
+            "buttons": wa_msg.quick_command_buttons(),
+        }
+    ]
+
+
+def test_add_item_message_no_buttons_before_list(monkeypatch, session):
+    monkeypatch.setattr(
+        processing,
+        "parse_message",
+        lambda text: ParsedIntent(action="add", items=["חלב"]),
+    )
+    fake_wa = FakeWhatsApp()
+    job = IncomingJob(
+        kind="message",
+        phone="972500000008",
+        name="Tester",
+        message_id="wamid.8",
+        text="תביא חלב",
+    )
+
+    processing.process_job(fake_wa, job)
+
+    assert len(fake_wa.sent) == 2
+    assert fake_wa.sent[0]["buttons"] is None
+    assert "הוספתי" in fake_wa.sent[0]["text"]
+    assert isinstance(fake_wa.sent[1]["buttons"], SectionList)
+
+
+def test_cmd_clear_button_no_buttons_before_list(session):
+    fake_wa = FakeWhatsApp()
+    job = IncomingJob(
+        kind="button",
+        phone="972500000009",
+        name="Tester",
+        message_id="wamid.9",
+        callback_data="cmd:clear",
+    )
+
+    processing.process_job(fake_wa, job)
+
+    assert len(fake_wa.sent) == 2
+    assert fake_wa.sent[0]["buttons"] is None
+    assert fake_wa.sent[0]["text"].startswith("ניקיתי")
+
+
+def test_cmd_list_empty_gets_quick_buttons(session):
+    fake_wa = FakeWhatsApp()
+    job = IncomingJob(
+        kind="button",
+        phone="972500000010",
+        name="Tester",
+        message_id="wamid.10",
+        callback_data="cmd:list",
+    )
+
+    processing.process_job(fake_wa, job)
+
+    assert fake_wa.sent == [
+        {
+            "to": "972500000010",
+            "text": "הרשימה ריקה 🎉",
+            "buttons": wa_msg.quick_command_buttons(),
+        }
+    ]

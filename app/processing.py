@@ -65,9 +65,7 @@ def _process_message(wa: WhatsApp, job: IncomingJob) -> None:
 def _process_audio(wa: WhatsApp, job: IncomingJob) -> None:
     """Voice note: download → transcribe (Hebrew) → process as if it were text."""
     if not transcription.is_enabled():
-        wa.send_message(
-            to=job.phone, text="זיהוי קולי עדיין לא מוגדר 🙏 נסו לכתוב הודעת טקסט."
-        )
+        _send_final(wa, job.phone, "זיהוי קולי עדיין לא מוגדר 🙏 נסו לכתוב הודעת טקסט.")
         return
     if not job.media_id:
         return
@@ -77,13 +75,11 @@ def _process_audio(wa: WhatsApp, job: IncomingJob) -> None:
         transcript = transcription.transcribe(audio_bytes, mime_type)
     except Exception:  # noqa: BLE001 — a bad recording must not crash the worker
         logger.exception("voice transcription failed for %s", job.message_id)
-        wa.send_message(
-            to=job.phone, text="לא הצלחתי להבין את ההקלטה 🎤 נסו שוב או כתבו טקסט."
-        )
+        _send_final(wa, job.phone, "לא הצלחתי להבין את ההקלטה 🎤 נסו שוב או כתבו טקסט.")
         return
 
     if not transcript:
-        wa.send_message(to=job.phone, text="לא שמעתי כלום בהקלטה 🤔 נסו שוב.")
+        _send_final(wa, job.phone, "לא שמעתי כלום בהקלטה 🤔 נסו שוב.")
         return
 
     # Echo what we heard so the user can catch any mis-transcription, then act.
@@ -96,9 +92,8 @@ def _handle_text(wa: WhatsApp, phone: str, name: str, text: str) -> None:
     # Unsupported message types (image, sticker, document) arrive with no text.
     # Answer kindly instead of running an empty message through Claude.
     if not text.strip():
-        wa.send_message(
-            to=phone,
-            text="אני קורא טקסט ומאזין להקלטות קוליות 🙂 כתבו או הקליטו מה להביא.",
+        _send_final(
+            wa, phone, "אני קורא טקסט ומאזין להקלטות קוליות 🙂 כתבו או הקליטו מה להביא."
         )
         return
 
@@ -108,7 +103,12 @@ def _handle_text(wa: WhatsApp, phone: str, name: str, text: str) -> None:
         user = repo.get_or_create_user(session, phone, name)
         result = handle_intent(session, user, intent)
         if result.reply_text:
-            wa.send_message(to=phone, text=result.reply_text)
+            # A list message follows only when show_list is True — skip the
+            # quick buttons then so we don't send two interactive messages.
+            if result.show_list:
+                wa.send_message(to=phone, text=result.reply_text)
+            else:
+                _send_final(wa, phone, result.reply_text)
         if result.show_list:
             _send_list(wa, phone, session, user)
 
@@ -127,7 +127,7 @@ def _process_selection(wa: WhatsApp, job: IncomingJob) -> None:
         user = repo.get_or_create_user(session, job.phone, job.name)
         item = repo.mark_item_bought(session, item_id, user.id)
         if item is None:
-            wa.send_message(to=job.phone, text="הפריט כבר לא קיים ברשימה.")
+            _send_final(wa, job.phone, "הפריט כבר לא קיים ברשימה.")
             return
         wa.send_message(to=job.phone, text=f"סימנתי שנקנה: {item.text} ✓")
         _send_list(wa, job.phone, session, user)
@@ -145,7 +145,7 @@ def _process_button(wa: WhatsApp, job: IncomingJob) -> None:
             wa.send_message(to=job.phone, text=f"ניקיתי {count} פריטים שנקנו. ✨")
             _send_list(wa, job.phone, session, user)
         elif data == "cmd:help":
-            wa.send_message(to=job.phone, text=HELP_TEXT)
+            _send_final(wa, job.phone, HELP_TEXT)
         else:
             logger.warning("unknown command button: %r", data)
 
@@ -158,6 +158,12 @@ def _send_list(wa: WhatsApp, phone: str, session: Session, user: User) -> None:
     needed = repo.get_needed_items(session, active_list.id)
     body, section_list = wa_msg.build_list_message(needed)
     if section_list is None:
-        wa.send_message(to=phone, text=body)
+        _send_final(wa, phone, body)
     else:
         wa.send_message(to=phone, text=body, buttons=section_list)
+
+
+def _send_final(wa: WhatsApp, phone: str, text: str) -> None:
+    """Send a reply that ends the turn (no list message follows), with the
+    quick-command buttons attached so the user has something to tap next."""
+    wa.send_message(to=phone, text=text, buttons=wa_msg.quick_command_buttons())
