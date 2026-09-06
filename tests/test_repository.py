@@ -90,3 +90,68 @@ def test_two_users_share_one_family(session):
     b = repo.get_or_create_user(session, "222", "B")
     # MVP: everyone joins the single default family → shared list.
     assert a.family_id == b.family_id
+
+
+def _buy(session, user, lst, text, days_ago):
+    """Add an item and mark it bought `days_ago` days ago."""
+    from datetime import datetime, timedelta, timezone
+
+    from app.domain.models import Item, ItemStatus
+
+    item = Item(list_id=lst.id, text=text, added_by_id=user.id)
+    item.status = ItemStatus.BOUGHT
+    item.bought_by_id = user.id
+    item.bought_at = datetime.now(timezone.utc) - timedelta(days=days_ago)
+    session.add(item)
+    session.flush()
+    return item
+
+
+def test_past_items_most_recent_first(session):
+    user, lst = _setup(session)
+    _buy(session, user, lst, "חלב", days_ago=1)
+    _buy(session, user, lst, "גבינה", days_ago=5)
+
+    assert repo.get_past_bought_items(session, user.family_id) == ["חלב", "גבינה"]
+
+
+def test_past_items_deduplicates_by_text(session):
+    user, lst = _setup(session)
+    _buy(session, user, lst, "חלב", days_ago=9)
+    _buy(session, user, lst, "גבינה", days_ago=5)
+    _buy(session, user, lst, "חלב", days_ago=1)
+
+    assert repo.get_past_bought_items(session, user.family_id) == ["חלב", "גבינה"]
+
+
+def test_past_items_ignores_never_bought(session):
+    user, lst = _setup(session)
+    repo.add_items(session, lst.id, user.id, ["לחם"])
+    _buy(session, user, lst, "חלב", days_ago=1)
+
+    assert repo.get_past_bought_items(session, user.family_id) == ["חלב"]
+
+
+def test_past_items_includes_cleared(session):
+    user, lst = _setup(session)
+    _buy(session, user, lst, "חלב", days_ago=1)
+    repo.clear_bought(session, lst.id)
+
+    assert repo.get_past_bought_items(session, user.family_id) == ["חלב"]
+
+
+def test_past_items_excludes_given_texts(session):
+    user, lst = _setup(session)
+    _buy(session, user, lst, "חלב", days_ago=1)
+    _buy(session, user, lst, "גבינה", days_ago=5)
+
+    result = repo.get_past_bought_items(session, user.family_id, exclude_texts=[" ChLv ", "חלב"])
+    assert result == ["גבינה"]
+
+
+def test_past_items_respects_limit(session):
+    user, lst = _setup(session)
+    for day, text in enumerate(["א", "ב", "ג"], start=1):
+        _buy(session, user, lst, text, days_ago=day)
+
+    assert repo.get_past_bought_items(session, user.family_id, limit=2) == ["א", "ב"]

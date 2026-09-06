@@ -12,9 +12,10 @@ boundary (see app.db.session.get_session).
 from __future__ import annotations
 
 import secrets
+from collections.abc import Iterable
 from datetime import datetime, timezone
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.domain.models import Family, Item, ItemStatus, ShoppingList, User
@@ -202,3 +203,46 @@ def get_family_members(session: Session, family_id: int) -> list[User]:
     return list(
         session.scalars(select(User).where(User.family_id == family_id))
     )
+
+
+def get_past_bought_items(
+    session: Session,
+    family_id: int,
+    exclude_texts: Iterable[str] = (),
+    limit: int = 30,
+) -> list[str]:
+    """Distinct item texts the family has bought before, most recent first.
+
+    Every item that ever reached BOUGHT counts, whether or not it was later
+    cleared. Texts are de-duplicated case-insensitively (matching the dedup
+    convention in `add_items`), keeping the spelling of the most recent
+    purchase. `exclude_texts` is normally the currently-needed items, so the
+    picker never offers something already on the list.
+    """
+    excluded = {t.strip().lower() for t in exclude_texts if t.strip()}
+
+    # Rank each purchase within its item name, newest first, then keep rank 1 —
+    # this gives one row per distinct name carrying its latest purchase date.
+    rank = (
+        func.row_number()
+        .over(partition_by=func.lower(Item.text), order_by=Item.bought_at.desc())
+        .label("rank")
+    )
+    latest = (
+        select(Item.text, Item.bought_at, rank)
+        .join(ShoppingList, ShoppingList.id == Item.list_id)
+        .where(ShoppingList.family_id == family_id, Item.status == ItemStatus.BOUGHT)
+        .subquery()
+    )
+    texts = session.execute(
+        select(latest.c.text).where(latest.c.rank == 1).order_by(latest.c.bought_at.desc())
+    ).scalars()
+
+    result: list[str] = []
+    for text in texts:
+        if text.strip().lower() in excluded:
+            continue
+        result.append(text)
+        if len(result) >= limit:
+            break
+    return result
