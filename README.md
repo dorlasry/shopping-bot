@@ -133,6 +133,38 @@ the steps are identical.
 | `נקה` | clears bought items |
 | `עזרה` | help |
 
+## Past-items picker (WhatsApp Flow)
+
+Tapping **פריטים קודמים** opens a multi-select of things the family bought
+before; ticking several adds them all back at once.
+
+It uses a *static* WhatsApp Flow: the options are sent with the message, so
+there is no callback endpoint and no encryption keys to manage.
+
+### One-time setup
+
+1. **Migrate the database.** Bought items are now kept as history instead of
+   being deleted, which needs a new column. `init_db()` only creates missing
+   tables, so run this once against your production Postgres:
+
+   ```sql
+   ALTER TABLE items ADD COLUMN cleared BOOLEAN NOT NULL DEFAULT FALSE;
+   ```
+
+   Fresh databases (and the test suite) get the column automatically.
+
+2. **Create the flow** and note the id it prints:
+
+   ```bash
+   python scripts/setup_flow.py
+   ```
+
+3. **Set `WA_PAST_ITEMS_FLOW_ID`** to that id on the worker service. Until it is
+   set, the button replies that the feature isn't ready yet.
+
+The flow is created as a draft and sent with `mode=draft`, so only people with a
+role on your Meta app can open it — which is what you want while testing.
+
 ## Deploying to Railway (always-on, no ngrok)
 
 Running on Railway gives you a **permanent HTTPS URL** (so you set Meta's callback
@@ -185,6 +217,7 @@ What changes vs. local:
 | `QUEUE_BACKEND` | `redis` |
 | `DATABASE_URL` | `${{Postgres.DATABASE_URL}}` |
 | `REDIS_URL` | `${{Redis.REDIS_URL}}` |
+| `WA_PAST_ITEMS_FLOW_ID` | flow id from `scripts/setup_flow.py` (worker only) |
 
 The web service additionally gets `PORT` injected automatically by Railway.
 
