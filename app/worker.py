@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import signal
 import threading
+import time
 from collections.abc import Callable
 
 from pywa import WhatsApp
@@ -28,13 +29,20 @@ from app.queue.factory import build_queue
 
 logger = get_logger(__name__)
 
+_DEQUEUE_ERROR_BACKOFF_SECONDS = 1
+
 
 def consume_loop(
     wa: WhatsApp, queue: MessageQueue, should_continue: Callable[[], bool]
 ) -> None:
     """Block on the queue and process jobs until `should_continue()` is False."""
     while should_continue():
-        job = queue.dequeue(timeout=5)
+        try:
+            job = queue.dequeue(timeout=5)
+        except Exception:  # noqa: BLE001 — a transient connection blip must not kill the worker
+            logger.exception("dequeue failed, retrying")
+            time.sleep(_DEQUEUE_ERROR_BACKOFF_SECONDS)
+            continue
         if job is None:
             continue  # timeout — loop again so we can check should_continue()
         if queue.seen(job.message_id):
