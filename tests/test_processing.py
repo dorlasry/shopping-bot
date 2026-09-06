@@ -10,7 +10,7 @@ from __future__ import annotations
 import contextlib
 
 import pytest
-from pywa.types import SectionList
+from pywa.types import FlowButton, SectionList
 
 from app import processing
 from app.domain.schemas import ParsedIntent
@@ -257,3 +257,53 @@ def test_cmd_list_empty_gets_quick_buttons(session):
             "buttons": wa_msg.quick_command_buttons(),
         }
     ]
+
+
+def _past_items_job(phone="972500000020", message_id="wamid.20"):
+    return IncomingJob(
+        kind="button",
+        phone=phone,
+        name="Tester",
+        message_id=message_id,
+        callback_data="cmd:past_items",
+    )
+
+
+def test_past_items_button_sends_flow(monkeypatch, session):
+    monkeypatch.setattr(processing.settings, "wa_past_items_flow_id", "12345")
+    monkeypatch.setattr(
+        processing.repo, "get_past_bought_items", lambda *a, **k: ["חלב", "גבינה"]
+    )
+    fake_wa = FakeWhatsApp()
+
+    processing.process_job(fake_wa, _past_items_job())
+
+    assert len(fake_wa.sent) == 1
+    button = fake_wa.sent[0]["buttons"]
+    assert isinstance(button, FlowButton)
+    assert button.flow_id == "12345"
+    assert button.flow_action_payload == {
+        "items": [{"id": "חלב", "title": "חלב"}, {"id": "גבינה", "title": "גבינה"}]
+    }
+
+
+def test_past_items_button_without_history(monkeypatch, session):
+    monkeypatch.setattr(processing.settings, "wa_past_items_flow_id", "12345")
+    monkeypatch.setattr(processing.repo, "get_past_bought_items", lambda *a, **k: [])
+    fake_wa = FakeWhatsApp()
+
+    processing.process_job(fake_wa, _past_items_job())
+
+    assert len(fake_wa.sent) == 1
+    assert "היסטוריה" in fake_wa.sent[0]["text"]
+    assert fake_wa.sent[0]["buttons"] == wa_msg.quick_command_buttons()
+
+
+def test_past_items_button_when_flow_not_configured(monkeypatch, session):
+    monkeypatch.setattr(processing.settings, "wa_past_items_flow_id", "")
+    fake_wa = FakeWhatsApp()
+
+    processing.process_job(fake_wa, _past_items_job())
+
+    assert len(fake_wa.sent) == 1
+    assert fake_wa.sent[0]["buttons"] == wa_msg.quick_command_buttons()

@@ -12,6 +12,8 @@ Reused by both:
 from __future__ import annotations
 
 from pywa import WhatsApp
+from pywa.types import FlowButton
+from pywa.types.flows import FlowActionType, FlowStatus
 from sqlalchemy.orm import Session
 
 from app.config import settings
@@ -20,9 +22,10 @@ from app.db.session import get_session
 from app.domain.models import User
 from app.logging_config import get_logger
 from app.queue.base import IncomingJob
+from app.services import flows as flow_msg
 from app.services import transcription
 from app.services import whatsapp as wa_msg
-from app.services.lists import HELP_TEXT, handle_intent
+from app.services.lists import HELP_TEXT, ActionResult, handle_intent
 from app.services.media import download_media
 from app.services.parser import parse_message
 
@@ -102,15 +105,7 @@ def _handle_text(wa: WhatsApp, phone: str, name: str, text: str) -> None:
     with get_session() as session:
         user = repo.get_or_create_user(session, phone, name)
         result = handle_intent(session, user, intent)
-        if result.reply_text:
-            # A list message follows only when show_list is True — skip the
-            # quick buttons then so we don't send two interactive messages.
-            if result.show_list:
-                wa.send_message(to=phone, text=result.reply_text)
-            else:
-                _send_final(wa, phone, result.reply_text)
-        if result.show_list:
-            _send_list(wa, phone, session, user)
+        _deliver(wa, phone, session, user, result)
 
 
 def _process_selection(wa: WhatsApp, job: IncomingJob) -> None:
@@ -146,11 +141,30 @@ def _process_button(wa: WhatsApp, job: IncomingJob) -> None:
             _send_list(wa, job.phone, session, user)
         elif data == "cmd:help":
             _send_final(wa, job.phone, HELP_TEXT)
+        elif data == "cmd:past_items":
+            _send_past_items(wa, job.phone, session, user)
         else:
             logger.warning("unknown command button: %r", data)
 
 
 # --- helpers ---------------------------------------------------------------
+
+
+def _deliver(
+    wa: WhatsApp, phone: str, session: Session, user: User, result: ActionResult
+) -> None:
+    """Send an ActionResult: its text, then whatever follow-up it asks for."""
+    if result.reply_text:
+        # An interactive message follows only when show_list/show_past_items is
+        # set — skip the quick buttons then, so we never send two in a row.
+        if result.show_list or result.show_past_items:
+            wa.send_message(to=phone, text=result.reply_text)
+        else:
+            _send_final(wa, phone, result.reply_text)
+    if result.show_list:
+        _send_list(wa, phone, session, user)
+    if result.show_past_items:
+        _send_past_items(wa, phone, session, user)
 
 
 def _send_list(wa: WhatsApp, phone: str, session: Session, user: User) -> None:
@@ -161,6 +175,42 @@ def _send_list(wa: WhatsApp, phone: str, session: Session, user: User) -> None:
         _send_final(wa, phone, body)
     else:
         wa.send_message(to=phone, text=body, buttons=section_list)
+
+
+def _send_past_items(wa: WhatsApp, phone: str, session: Session, user: User) -> None:
+    """Send the past-items Flow, pre-filled with what the family bought before.
+
+    The flow is static: its options travel with this message, so there is no
+    endpoint for Meta to call back into.
+    """
+    if not settings.wa_past_items_flow_id:
+        _send_final(wa, phone, "הפיצ'ר הזה עדיין לא מוכן 🙏")
+        return
+
+    active_list = repo.get_active_list(session, user.family_id)
+    needed = {item.text for item in repo.get_needed_items(session, active_list.id)}
+    past = repo.get_past_bought_items(
+        session,
+        user.family_id,
+        exclude_texts=needed,
+        limit=flow_msg.MAX_PAST_ITEMS,
+    )
+    if not past:
+        _send_final(wa, phone, "אין עדיין היסטוריה של קניות 🤷 קנו משהו קודם.")
+        return
+
+    wa.send_message(
+        to=phone,
+        text="הנה מה שקניתם בעבר — בחרו מה להוסיף 👇",
+        buttons=FlowButton(
+            title="בחרו פריטים",
+            flow_id=settings.wa_past_items_flow_id,
+            flow_action_type=FlowActionType.NAVIGATE,
+            flow_action_screen=flow_msg.SCREEN_ID,
+            flow_action_payload=flow_msg.build_items_payload(past),
+            mode=FlowStatus.DRAFT,
+        ),
+    )
 
 
 def _send_final(wa: WhatsApp, phone: str, text: str) -> None:
