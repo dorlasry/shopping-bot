@@ -54,13 +54,35 @@ def test_mark_all_bought(session):
     assert repo.get_needed_items(session, lst.id) == []
 
 
-def test_clear_bought_removes_only_bought(session):
+def test_clear_bought_counts_only_bought(session):
     user, lst = _setup(session)
     created = repo.add_items(session, lst.id, user.id, ["חלב", "גבינה"])
     repo.mark_item_bought(session, created[0].id, user.id)  # buy חלב
     count = repo.clear_bought(session, lst.id)
     assert count == 1
     assert {i.text for i in repo.get_needed_items(session, lst.id)} == {"גבינה"}
+
+
+def test_clear_bought_keeps_items_as_history(session):
+    user, lst = _setup(session)
+    created = repo.add_items(session, lst.id, user.id, ["חלב"])
+    repo.mark_item_bought(session, created[0].id, user.id)
+
+    repo.clear_bought(session, lst.id)
+
+    # The row survives (it is purchase history now), but is marked cleared.
+    item = repo.get_item(session, created[0].id)
+    assert item is not None
+    assert item.cleared is True
+
+
+def test_clear_bought_is_idempotent(session):
+    user, lst = _setup(session)
+    created = repo.add_items(session, lst.id, user.id, ["חלב"])
+    repo.mark_item_bought(session, created[0].id, user.id)
+
+    assert repo.clear_bought(session, lst.id) == 1
+    assert repo.clear_bought(session, lst.id) == 0
 
 
 def test_two_users_share_one_family(session):

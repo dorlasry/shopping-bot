@@ -179,12 +179,21 @@ def mark_all_bought(session: Session, list_id: int, bought_by_id: int) -> list[s
 
 
 def clear_bought(session: Session, list_id: int) -> int:
-    """Delete all bought items from the list. Returns the count removed."""
+    """Mark bought items as cleared. Returns the count cleared.
+
+    The rows are kept, not deleted, so past purchases stay available for the
+    past-items picker. The `cleared` flag keeps this idempotent: a second call
+    finds nothing left to clear, exactly as deleting used to.
+    """
     bought = session.scalars(
-        select(Item).where(Item.list_id == list_id, Item.status == ItemStatus.BOUGHT)
+        select(Item).where(
+            Item.list_id == list_id,
+            Item.status == ItemStatus.BOUGHT,
+            Item.cleared.is_(False),
+        )
     ).all()
     for item in bought:
-        session.delete(item)
+        item.cleared = True
     session.flush()
     return len(bought)
 
