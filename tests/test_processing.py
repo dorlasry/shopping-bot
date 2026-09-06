@@ -13,7 +13,6 @@ import pytest
 from pywa.types import SectionList
 
 from app import processing
-from app.db import repository as repo
 from app.domain.schemas import ParsedIntent
 from app.queue.base import IncomingJob
 from app.services import whatsapp as wa_msg
@@ -59,6 +58,7 @@ def test_indicate_typing_called_for_message(monkeypatch, session):
     processing.process_job(fake_wa, job)
 
     assert fake_wa.typing_calls == ["wamid.1"]
+    assert fake_wa.sent[0]["buttons"] == wa_msg.quick_command_buttons()
 
 
 def test_indicate_typing_called_for_audio(monkeypatch, session):
@@ -76,6 +76,29 @@ def test_indicate_typing_called_for_audio(monkeypatch, session):
     processing.process_job(fake_wa, job)
 
     assert fake_wa.typing_calls == ["wamid.2"]
+
+
+def test_audio_disabled_gets_quick_buttons(monkeypatch, session):
+    monkeypatch.setattr(processing.transcription, "is_enabled", lambda: False)
+    fake_wa = FakeWhatsApp()
+    job = IncomingJob(
+        kind="audio",
+        phone="972500000015",
+        name="Tester",
+        message_id="wamid.15",
+        media_id="media123",
+        mime_type="audio/ogg",
+    )
+
+    processing.process_job(fake_wa, job)
+
+    assert fake_wa.sent == [
+        {
+            "to": "972500000015",
+            "text": "זיהוי קולי עדיין לא מוגדר 🙏 נסו לכתוב הודעת טקסט.",
+            "buttons": wa_msg.quick_command_buttons(),
+        }
+    ]
 
 
 def test_indicate_typing_called_for_selection(session):
