@@ -94,14 +94,14 @@ def test_two_users_share_one_family(session):
 
 def _buy(session, user, lst, text, days_ago):
     """Add an item and mark it bought `days_ago` days ago."""
-    from datetime import datetime, timedelta, timezone
+    from datetime import UTC, datetime, timedelta
 
     from app.domain.models import Item, ItemStatus
 
     item = Item(list_id=lst.id, text=text, added_by_id=user.id)
     item.status = ItemStatus.BOUGHT
     item.bought_by_id = user.id
-    item.bought_at = datetime.now(timezone.utc) - timedelta(days=days_ago)
+    item.bought_at = datetime.now(UTC) - timedelta(days=days_ago)
     session.add(item)
     session.flush()
     return item
