@@ -123,3 +123,10 @@ def test_unknown(session):
     user = _user(session)
     res = handle_intent(session, user, ParsedIntent(action="unknown"))
     assert "לא הבנתי" in res.reply_text
+
+
+def test_past_items_intent(session):
+    user = _user(session)
+    res = handle_intent(session, user, ParsedIntent(action="past_items"))
+    assert res.show_past_items is True
+    assert res.show_list is False

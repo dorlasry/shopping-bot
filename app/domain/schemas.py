@@ -11,7 +11,16 @@ from pydantic import BaseModel, Field
 
 # The set of things a user can intend with a message.
 Action = Literal[
-    "add", "remove", "bought", "bought_all", "view", "clear", "greeting", "help", "unknown"
+    "add",
+    "remove",
+    "bought",
+    "bought_all",
+    "view",
+    "clear",
+    "past_items",
+    "greeting",
+    "help",
+    "unknown",
 ]
 
 

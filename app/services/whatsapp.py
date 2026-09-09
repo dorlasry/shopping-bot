@@ -47,7 +47,7 @@ def build_list_message(items: list[Item]) -> tuple[str, SectionList | None]:
     # No row description — WhatsApp echoes it into the user's selection bubble,
     # which makes that confirmation look cluttered/redundant.
     rows = [
-        SectionRow(title=_truncate(item.text, 24), callback_data=f"buy:{item.id}")
+        SectionRow(title=truncate(item.text, 24), callback_data=f"buy:{item.id}")
         for item in tappable
     ]
     section = Section(title="לקנות", rows=rows)
@@ -56,13 +56,14 @@ def build_list_message(items: list[Item]) -> tuple[str, SectionList | None]:
 
 
 def quick_command_buttons() -> list[Button]:
-    """Reply buttons for the common actions."""
+    """Reply buttons for the common actions (WhatsApp allows at most 3)."""
     return [
         Button(title="רשימה", callback_data="cmd:list"),
+        Button(title="פריטים קודמים", callback_data="cmd:past_items"),
         Button(title="עזרה", callback_data="cmd:help"),
     ]
 
 
-def _truncate(text: str, limit: int) -> str:
+def truncate(text: str, limit: int) -> str:
     text = text.strip()
     return text if len(text) <= limit else text[: limit - 1] + "…"

@@ -7,11 +7,12 @@ and processed by the worker, exactly like text messages.
 from __future__ import annotations
 
 from pywa import WhatsApp
-from pywa.types import CallbackButton, CallbackSelection
+from pywa.types import CallbackButton, CallbackSelection, FlowCompletion
 
-from app.handlers.commands import enqueue_callback
+from app.handlers.commands import enqueue_callback, enqueue_flow_completion
 from app.logging_config import get_logger
 from app.queue.base import MessageQueue
+from app.services import flows as flow_msg
 
 logger = get_logger(__name__)
 
@@ -26,3 +27,13 @@ def register(wa: WhatsApp, queue: MessageQueue) -> None:
     def on_command_button(_: WhatsApp, btn: CallbackButton) -> None:
         logger.info("enqueue button from %s: %r", btn.from_user.wa_id, btn.data)
         enqueue_callback(queue, btn, "button")
+
+    @wa.on_flow_completion
+    def on_past_items_flow(_: WhatsApp, completion: FlowCompletion) -> None:
+        picked = flow_msg.picked_items(completion.response)
+        logger.info(
+            "enqueue flow completion from %s: %d item(s)",
+            completion.from_user.wa_id,
+            len(picked),
+        )
+        enqueue_flow_completion(queue, completion, picked)

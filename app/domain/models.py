@@ -94,6 +94,11 @@ class Item(Base):
     # Reserved for the smart-categorization feature (e.g. "חלב" -> dairy).
     category: Mapped[str | None] = mapped_column(String(50), nullable=True)
 
+    # True once "נקה" has cleared it off the active list. Bought items are kept
+    # rather than deleted so they remain available as purchase history for the
+    # past-items picker.
+    cleared: Mapped[bool] = mapped_column(Boolean, default=False)
+
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )

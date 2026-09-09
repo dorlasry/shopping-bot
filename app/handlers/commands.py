@@ -46,3 +46,16 @@ def enqueue_audio(queue: MessageQueue, msg) -> None:
             mime_type=getattr(msg.audio, "mime_type", "audio/ogg"),
         )
     )
+
+
+def enqueue_flow_completion(queue: MessageQueue, completion, picked: list[str]) -> None:
+    """Enqueue the items a user ticked in the past-items flow."""
+    queue.enqueue(
+        IncomingJob(
+            kind="flow_completion",
+            phone=completion.from_user.wa_id,
+            name=completion.from_user.name or "",
+            message_id=completion.id,
+            picked=picked,
+        )
+    )

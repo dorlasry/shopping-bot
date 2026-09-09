@@ -21,6 +21,10 @@ class Settings(BaseSettings):
     wa_verify_token: str
     wa_app_secret: str
 
+    # WhatsApp Business Account ID. Only needed by scripts/setup_flow.py, which
+    # creates the past-items Flow; the bot itself does not use it.
+    wa_business_account_id: str = ""
+
     # Anthropic Claude
     anthropic_api_key: str
     claude_model: str = "claude-sonnet-4-6"
@@ -39,6 +43,11 @@ class Settings(BaseSettings):
     queue_backend: str = "redis"
     redis_url: str = "redis://localhost:6379/0"
     queue_key: str = "shopping:incoming"
+
+    # WhatsApp Flow for the past-items picker. Empty disables the feature
+    # (the bot replies that it isn't ready yet) — set it to the flow id
+    # printed by scripts/setup_flow.py.
+    wa_past_items_flow_id: str = ""
 
     # Misc
     log_level: str = "INFO"

@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm test)",
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Bash(.venv/bin/pytest *)",
+      "Bash(pytest *)",
+      "Bash(.venv/bin/ruff check *)",
+      "Bash(ruff check *)",
+      "mcp__visualize__show_widget",
+      "mcp__visualize__read_me",
+      "mcp__Claude_in_Chrome__tabs_context_mcp",
+      "mcp__Claude_in_Chrome__list_connected_browsers",
+      "mcp__ccd_session__mark_chapter",
+      "mcp__mcp-registry__search_mcp_registry"
+    ]
+  }
+}
