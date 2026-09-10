@@ -300,14 +300,33 @@ def test_past_items_button_without_history(monkeypatch, session):
     assert fake_wa.sent[0]["buttons"] == wa_msg.quick_command_buttons()
 
 
-def test_past_items_button_when_flow_not_configured(monkeypatch, session):
+def test_past_items_without_flow_sends_interactive_list(monkeypatch, session):
     monkeypatch.setattr(processing.settings, "wa_past_items_flow_id", "")
+    monkeypatch.setattr(
+        processing.repo, "get_past_bought_items", lambda *a, **k: ["חלב", "גבינה"]
+    )
     fake_wa = FakeWhatsApp()
 
     processing.process_job(fake_wa, _past_items_job())
 
     assert len(fake_wa.sent) == 1
-    assert "עדיין לא מוכן" in fake_wa.sent[0]["text"]
+    section = fake_wa.sent[0]["buttons"]
+    assert isinstance(section, SectionList)
+    assert [r.callback_data for r in section.sections[0].rows] == [
+        "readd:חלב",
+        "readd:גבינה",
+    ]
+
+
+def test_past_items_without_flow_and_no_history(monkeypatch, session):
+    monkeypatch.setattr(processing.settings, "wa_past_items_flow_id", "")
+    monkeypatch.setattr(processing.repo, "get_past_bought_items", lambda *a, **k: [])
+    fake_wa = FakeWhatsApp()
+
+    processing.process_job(fake_wa, _past_items_job())
+
+    assert len(fake_wa.sent) == 1
+    assert "היסטוריה" in fake_wa.sent[0]["text"]
     assert fake_wa.sent[0]["buttons"] == wa_msg.quick_command_buttons()
 
 

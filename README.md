@@ -136,7 +136,21 @@ the steps are identical.
 | `עזרה` | help |
 | `פריטים קודמים` | opens the past-items picker (Flow) |
 
-## Past-items picker (WhatsApp Flow)
+## Past-items picker
+
+The picker has two delivery modes, chosen by whether `WA_PAST_ITEMS_FLOW_ID` is
+set:
+
+- **set** — a WhatsApp Flow with checkboxes, so several items can be picked at
+  once. Needs the one-time setup below.
+- **empty** — an interactive list: tap an item to add it, and the list comes
+  straight back minus that item, so you tap through several in a row. No setup
+  at all.
+
+Start with the list. Meta blocks Flow sends on accounts that don't meet its
+integrity requirements (error `139000`, common on unverified businesses and test
+numbers), and the list has no such gate. Set the flow id once Flows work for
+your account.
 
 Tapping **פריטים קודמים** opens a multi-select of things the family bought
 before; ticking several adds them all back at once.
@@ -235,7 +249,7 @@ What changes vs. local:
 | `QUEUE_BACKEND` | `redis` |
 | `DATABASE_URL` | `${{Postgres.DATABASE_URL}}` |
 | `REDIS_URL` | `${{Redis.REDIS_URL}}` |
-| `WA_PAST_ITEMS_FLOW_ID` | flow id from `scripts/setup_flow.py` (worker only) |
+| `WA_PAST_ITEMS_FLOW_ID` | flow id from `scripts/setup_flow.py` (worker only). Leave empty to use the interactive list instead |
 | `WA_BUSINESS_ACCOUNT_ID` | Meta's WhatsApp Manager -> WhatsApp Accounts (only needed to run `scripts/setup_flow.py`; not used by the running services) |
 
 The web service additionally gets `PORT` injected automatically by Railway.

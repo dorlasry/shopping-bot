@@ -198,38 +198,49 @@ def _send_list(wa: WhatsApp, phone: str, session: Session, user: User) -> None:
 
 
 def _send_past_items(wa: WhatsApp, phone: str, session: Session, user: User) -> None:
-    """Send the past-items Flow, pre-filled with what the family bought before.
+    """Offer items the family bought before, so they can be added again.
 
-    The flow is static: its options travel with this message, so there is no
-    endpoint for Meta to call back into.
+    Sent as a Flow when a flow id is configured, otherwise as an interactive
+    list. The list needs no setup and works on accounts where Meta refuses to
+    send Flows, so there is always a working path.
     """
-    if not settings.wa_past_items_flow_id:
-        _send_final(wa, phone, "הפיצ'ר הזה עדיין לא מוכן 🙏")
+    use_flow = bool(settings.wa_past_items_flow_id)
+    past = _past_item_texts(
+        session,
+        user,
+        flow_msg.MAX_PAST_ITEMS if use_flow else wa_msg.MAX_PAST_LISTED,
+    )
+
+    if use_flow and past:
+        wa.send_message(
+            to=phone,
+            text="הנה מה שקניתם בעבר — בחרו מה להוסיף 👇",
+            buttons=FlowButton(
+                title="בחרו פריטים",
+                flow_id=settings.wa_past_items_flow_id,
+                flow_action_type=FlowActionType.NAVIGATE,
+                flow_action_screen=flow_msg.SCREEN_ID,
+                flow_action_payload=flow_msg.build_items_payload(past),
+                mode=FlowStatus.DRAFT,
+            ),
+        )
         return
 
+    # Also the empty-history path for the Flow: the builder owns that message,
+    # so it reads the same whichever delivery is configured.
+    body, section_list = wa_msg.build_past_items_message(past)
+    if section_list is None:
+        _send_final(wa, phone, body)
+    else:
+        wa.send_message(to=phone, text=body, buttons=section_list)
+
+
+def _past_item_texts(session: Session, user: User, limit: int) -> list[str]:
+    """Texts the family bought before, minus whatever is already on the list."""
     active_list = repo.get_active_list(session, user.family_id)
     needed = {item.text for item in repo.get_needed_items(session, active_list.id)}
-    past = repo.get_past_bought_items(
-        session,
-        user.family_id,
-        exclude_texts=needed,
-        limit=flow_msg.MAX_PAST_ITEMS,
-    )
-    if not past:
-        _send_final(wa, phone, "אין עדיין היסטוריה של קניות 🤷 קנו משהו קודם.")
-        return
-
-    wa.send_message(
-        to=phone,
-        text="הנה מה שקניתם בעבר — בחרו מה להוסיף 👇",
-        buttons=FlowButton(
-            title="בחרו פריטים",
-            flow_id=settings.wa_past_items_flow_id,
-            flow_action_type=FlowActionType.NAVIGATE,
-            flow_action_screen=flow_msg.SCREEN_ID,
-            flow_action_payload=flow_msg.build_items_payload(past),
-            mode=FlowStatus.DRAFT,
-        ),
+    return repo.get_past_bought_items(
+        session, user.family_id, exclude_texts=needed, limit=limit
     )
 
 
