@@ -113,8 +113,15 @@ def _handle_text(wa: WhatsApp, phone: str, name: str, text: str) -> None:
 
 def _process_selection(wa: WhatsApp, job: IncomingJob) -> None:
     data = job.callback_data or ""
-    if not data.startswith("buy:"):
-        return
+    if data.startswith("buy:"):
+        _process_buy(wa, job, data)
+    elif data.startswith("readd:"):
+        _process_readd(wa, job, data)
+    else:
+        logger.warning("unknown selection callback data: %r", data)
+
+
+def _process_buy(wa: WhatsApp, job: IncomingJob, data: str) -> None:
     try:
         item_id = int(data.split(":", 1)[1])
     except (ValueError, IndexError):
@@ -129,6 +136,32 @@ def _process_selection(wa: WhatsApp, job: IncomingJob) -> None:
             return
         wa.send_message(to=job.phone, text=f"סימנתי שנקנה: {item.text} ✓")
         _send_list(wa, job.phone, session, user)
+
+
+def _process_readd(wa: WhatsApp, job: IncomingJob, data: str) -> None:
+    """Add back an item picked from the past-items list, then offer the rest.
+
+    The item just added is now needed, so the query drops it from the refreshed
+    picker on its own — tapping through several in a row needs no bookkeeping.
+    """
+    text = data.split(":", 1)[1].strip()
+    if not text:
+        logger.warning("empty readd callback data: %r", data)
+        return
+
+    with get_session() as session:
+        user = repo.get_or_create_user(session, job.phone, job.name)
+        result = handle_intent(session, user, ParsedIntent(action="add", items=[text]))
+        if result.reply_text:
+            wa.send_message(to=job.phone, text=result.reply_text)
+
+        remaining = _past_item_texts(session, user, wa_msg.MAX_PAST_LISTED)
+        if not remaining:
+            # An empty picker would be a dead end; show what is on the list now.
+            _send_list(wa, job.phone, session, user)
+            return
+        body, section_list = wa_msg.build_past_items_message(remaining)
+        wa.send_message(to=job.phone, text=body, buttons=section_list)
 
 
 def _process_button(wa: WhatsApp, job: IncomingJob) -> None:

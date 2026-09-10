@@ -362,3 +362,60 @@ def test_flow_completion_with_nothing_picked(session):
     assert len(fake_wa.sent) == 1
     assert "לא נבחרו" in fake_wa.sent[0]["text"]
     assert fake_wa.sent[0]["buttons"] == wa_msg.quick_command_buttons()
+
+
+def _readd_job(text, phone="972500000030", message_id="wamid.30"):
+    return IncomingJob(
+        kind="selection",
+        phone=phone,
+        name="Tester",
+        message_id=message_id,
+        callback_data=f"readd:{text}",
+    )
+
+
+def test_readd_adds_the_item_then_offers_the_rest(monkeypatch, session):
+    monkeypatch.setattr(processing.settings, "wa_past_items_flow_id", "")
+    monkeypatch.setattr(
+        processing.repo, "get_past_bought_items", lambda *a, **k: ["גבינה"]
+    )
+    fake_wa = FakeWhatsApp()
+
+    processing.process_job(fake_wa, _readd_job("חלב"))
+
+    # Confirmation goes out plain, so the list that follows is the only
+    # interactive message.
+    assert "הוספתי" in fake_wa.sent[0]["text"]
+    assert fake_wa.sent[0]["buttons"] is None
+    assert isinstance(fake_wa.sent[1]["buttons"], SectionList)
+
+    user = repo.get_or_create_user(session, "972500000030", "Tester")
+    lst = repo.get_active_list(session, user.family_id)
+    assert {i.text for i in repo.get_needed_items(session, lst.id)} == {"חלב"}
+
+
+def test_readd_shows_the_shopping_list_when_history_is_exhausted(monkeypatch, session):
+    monkeypatch.setattr(processing.settings, "wa_past_items_flow_id", "")
+    monkeypatch.setattr(processing.repo, "get_past_bought_items", lambda *a, **k: [])
+    fake_wa = FakeWhatsApp()
+
+    processing.process_job(fake_wa, _readd_job("חלב"))
+
+    assert "הוספתי" in fake_wa.sent[0]["text"]
+    # The follow-up is the shopping list, not an empty picker.
+    assert "הרשימה שלכם" in fake_wa.sent[1]["text"]
+
+
+def test_unknown_selection_prefix_sends_nothing(session):
+    fake_wa = FakeWhatsApp()
+    job = IncomingJob(
+        kind="selection",
+        phone="972500000031",
+        name="Tester",
+        message_id="wamid.31",
+        callback_data="bogus:1",
+    )
+
+    processing.process_job(fake_wa, job)
+
+    assert fake_wa.sent == []
