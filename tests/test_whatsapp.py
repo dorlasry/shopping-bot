@@ -4,38 +4,7 @@ from __future__ import annotations
 
 from pywa.types import Button, SectionList
 
-from app.domain.models import Item
-from app.services.whatsapp import (
-    build_list_message,
-    build_past_items_message,
-    quick_command_buttons,
-)
-
-
-def _items(*texts):
-    return [
-        Item(id=n, text=text, list_id=1, added_by_id=1)
-        for n, text in enumerate(texts, start=1)
-    ]
-
-
-def test_list_message_offers_a_past_items_row():
-    _body, section = build_list_message(_items("חלב", "גבינה"))
-
-    # The shopping items come first, then a section holding the shortcut, so
-    # פריטים קודמים is reachable from every list without a second message.
-    assert [s.title for s in section.sections] == ["לקנות", "עוד"]
-    shortcut = section.sections[1].rows[0]
-    assert shortcut.title == "פריטים קודמים"
-    assert shortcut.callback_data == "cmd:past_items"
-
-
-def test_list_message_leaves_room_for_the_shortcut_row():
-    _body, section = build_list_message(_items(*[f"פריט {n}" for n in range(1, 13)]))
-
-    # WhatsApp caps a list at 10 rows across ALL sections, so items give one up.
-    assert len(section.sections[0].rows) == 9
-    assert sum(len(s.rows) for s in section.sections) == 10
+from app.services.whatsapp import build_past_items_message, quick_command_buttons
 
 
 def test_quick_command_buttons():

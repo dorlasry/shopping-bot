@@ -10,7 +10,7 @@ from __future__ import annotations
 import contextlib
 
 import pytest
-from pywa.types import FlowButton, SectionList
+from pywa.types import Button, FlowButton, SectionList
 
 from app import processing
 from app.db import repository as repo
@@ -216,7 +216,8 @@ def test_add_item_message_no_buttons_before_list(monkeypatch, session):
 
     processing.process_job(fake_wa, job)
 
-    assert len(fake_wa.sent) == 2
+    # Confirmation, the list, then the past-items shortcut on its own message.
+    assert len(fake_wa.sent) == 3
     assert fake_wa.sent[0]["buttons"] is None
     assert "הוספתי" in fake_wa.sent[0]["text"]
     assert isinstance(fake_wa.sent[1]["buttons"], SectionList)
@@ -421,24 +422,44 @@ def test_unknown_selection_prefix_sends_nothing(session):
     assert fake_wa.sent == []
 
 
-def test_past_items_row_in_the_list_opens_the_picker(monkeypatch, session):
-    """The shortcut row arrives as a selection, not a reply button."""
-    monkeypatch.setattr(processing.settings, "wa_past_items_flow_id", "")
+def test_list_is_followed_by_a_past_items_button(monkeypatch, session):
+    """The shortcut rides on its own message — a list already uses the one
+    interactive slot, so a reply button cannot share it."""
     monkeypatch.setattr(
-        processing.repo, "get_past_bought_items", lambda *a, **k: ["חלב"]
+        processing, "parse_message", lambda text: ParsedIntent(action="add", items=["חלב"])
     )
     fake_wa = FakeWhatsApp()
     job = IncomingJob(
-        kind="selection",
-        phone="972500000040",
+        kind="message",
+        phone="972500000041",
         name="Tester",
-        message_id="wamid.40",
-        callback_data="cmd:past_items",
+        message_id="wamid.41",
+        text="תביא חלב",
     )
 
     processing.process_job(fake_wa, job)
 
-    assert len(fake_wa.sent) == 1
-    section = fake_wa.sent[0]["buttons"]
-    assert isinstance(section, SectionList)
-    assert [r.callback_data for r in section.sections[0].rows] == ["readd:חלב"]
+    assert len(fake_wa.sent) == 3
+    assert isinstance(fake_wa.sent[1]["buttons"], SectionList)  # the list itself
+    shortcut = fake_wa.sent[2]["buttons"]
+    assert shortcut == [Button(title="הוסף פריטים קודמים", callback_data="cmd:past_items")]
+
+
+def test_empty_list_has_no_extra_shortcut_message(monkeypatch, session):
+    """An empty list already ends with the quick buttons, which include it."""
+    monkeypatch.setattr(
+        processing, "parse_message", lambda text: ParsedIntent(action="clear")
+    )
+    fake_wa = FakeWhatsApp()
+    job = IncomingJob(
+        kind="message",
+        phone="972500000042",
+        name="Tester",
+        message_id="wamid.42",
+        text="נקה",
+    )
+
+    processing.process_job(fake_wa, job)
+
+    assert len(fake_wa.sent) == 2
+    assert fake_wa.sent[1]["buttons"] == wa_msg.quick_command_buttons()
