@@ -17,7 +17,15 @@ from pywa.types import Button, Section, SectionList, SectionRow
 from app.domain.models import Item
 
 LIST_BUTTON_TITLE = "סמן שנקנה"  # must be <= 20 chars
+PAST_BUTTON_TITLE = "הוסיפו לרשימה"  # must be <= 20 chars
 MAX_ROWS = 10
+
+# How many past items the picker names in the body text. Only the first
+# MAX_ROWS of them are tappable; the rest can be added by typing.
+MAX_PAST_LISTED = 20
+
+# WhatsApp caps a row's callback id at 200 characters.
+MAX_CALLBACK_CHARS = 200
 
 
 def build_list_message(items: list[Item]) -> tuple[str, SectionList | None]:
@@ -53,6 +61,42 @@ def build_list_message(items: list[Item]) -> tuple[str, SectionList | None]:
     section = Section(title="לקנות", rows=rows)
 
     return body, SectionList(button_title=LIST_BUTTON_TITLE, sections=[section])
+
+
+def build_past_items_message(texts: list[str]) -> tuple[str, SectionList | None]:
+    """Return (body_text, interactive_list) offering previously-bought items.
+
+    Mirrors build_list_message: the body names everything on offer, and the
+    first MAX_ROWS become tappable rows that add the item back to the list.
+    If there is nothing to offer — or nothing that fits in a callback — the
+    interactive list is None and the caller should just send the body.
+    """
+    if not texts:
+        return "אין עדיין היסטוריה של קניות 🤷 קנו משהו קודם.", None
+
+    lines = [f"{idx}. {text}" for idx, text in enumerate(texts, start=1)]
+    body = "🕘 מה שקניתם בעבר:\n" + "\n".join(lines)
+
+    # A pathologically long name cannot fit in a callback id, so it is offered
+    # in the body only.
+    rows = [
+        SectionRow(title=truncate(text, 24), callback_data=f"readd:{text}")
+        for text in texts[:MAX_ROWS]
+        if len(f"readd:{text}") <= MAX_CALLBACK_CHARS
+    ]
+    if not rows:
+        return body, None
+
+    if len(texts) > len(rows):
+        body += (
+            f"\n\nאפשר להקיש על {len(rows)} הראשונים, "
+            'או פשוט לכתוב "תביא <שם הפריט>" לכל פריט אחר.'
+        )
+    else:
+        body += "\n\nהקישו על הכפתור למטה כדי להוסיף לרשימה 👇"
+
+    section = Section(title="להוסיף שוב", rows=rows)
+    return body, SectionList(button_title=PAST_BUTTON_TITLE, sections=[section])
 
 
 def quick_command_buttons() -> list[Button]:
