@@ -188,7 +188,7 @@ there is no callback endpoint and no encryption keys to manage.
    `python scripts/setup_flow.py --update FLOW_ID` instead.
 
 4. **Set `WA_PAST_ITEMS_FLOW_ID`** to that id on the worker service. Until it is
-   set, the button replies that the feature isn't ready yet.
+   set, the picker is delivered as the interactive list described above.
 
 The flow is created as a draft and sent with `mode=draft`, so only people with a
 role on your Meta app can open it — which is what you want while testing.
