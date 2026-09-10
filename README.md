@@ -134,9 +134,40 @@ the steps are identical.
 | `רשימה` / `מה יש` | shows the interactive list |
 | `נקה` | clears bought items |
 | `עזרה` | help |
-| `פריטים קודמים` | opens the past-items picker (Flow) |
+| `פריטים קודמים` | opens the past-items picker |
 
-## Past-items picker (WhatsApp Flow)
+## Past-items picker
+
+The picker has two delivery modes, chosen by whether `WA_PAST_ITEMS_FLOW_ID` is
+set:
+
+- **set** — a WhatsApp Flow with checkboxes, so several items can be picked at
+  once. Needs the setup under [Flow mode](#flow-mode) below.
+- **empty** — an interactive list: tap an item to add it, and the list comes
+  straight back minus that item, so you tap through several in a row. No Flow
+  setup needed.
+
+Start with the list. Meta blocks Flow sends on accounts that don't meet its
+integrity requirements (error `139000`, common on unverified businesses and test
+numbers), and the list has no such gate. Set the flow id once Flows work for
+your account.
+
+### Migrate the database (required either way)
+
+Bought items are now kept as history instead of being deleted, which needs a
+new column. Every query against `items` now selects `cleared`, and `init_db()`
+never alters existing tables, so **run this before deploying the new code** —
+if you don't, the app can't read the `items` table at all and every command
+(add, list, buy, clear) breaks, not just this picker. This applies whichever
+delivery mode you use:
+
+```sql
+ALTER TABLE items ADD COLUMN cleared BOOLEAN NOT NULL DEFAULT FALSE;
+```
+
+Fresh databases (and the test suite) get the column automatically.
+
+### Flow mode
 
 Tapping **פריטים קודמים** opens a multi-select of things the family bought
 before; ticking several adds them all back at once.
@@ -144,26 +175,11 @@ before; ticking several adds them all back at once.
 It uses a *static* WhatsApp Flow: the options are sent with the message, so
 there is no callback endpoint and no encryption keys to manage.
 
-### One-time setup
-
-1. **Migrate the database — this is mandatory, not opt-in.** Bought items are
-   now kept as history instead of being deleted, which needs a new column.
-   Every query against `items` now selects `cleared`, and `init_db()` never
-   alters existing tables, so **run this before deploying the new code** — if
-   you don't, the app can't read the `items` table at all and every command
-   (add, list, buy, clear) breaks, not just this picker:
-
-   ```sql
-   ALTER TABLE items ADD COLUMN cleared BOOLEAN NOT NULL DEFAULT FALSE;
-   ```
-
-   Fresh databases (and the test suite) get the column automatically.
-
-2. **Set `WA_BUSINESS_ACCOUNT_ID`.** `scripts/setup_flow.py` needs your WhatsApp
+1. **Set `WA_BUSINESS_ACCOUNT_ID`.** `scripts/setup_flow.py` needs your WhatsApp
    Business Account ID to create a flow. Find it in Meta's WhatsApp Manager
    (WhatsApp Accounts -> your account) and put it in `.env`.
 
-3. **Create the flow** and note the id it prints:
+2. **Create the flow** and note the id it prints:
 
    ```bash
    python scripts/setup_flow.py
@@ -173,8 +189,8 @@ there is no callback endpoint and no encryption keys to manage.
    to push a changed screen to the existing flow, use
    `python scripts/setup_flow.py --update FLOW_ID` instead.
 
-4. **Set `WA_PAST_ITEMS_FLOW_ID`** to that id on the worker service. Until it is
-   set, the button replies that the feature isn't ready yet.
+3. **Set `WA_PAST_ITEMS_FLOW_ID`** to that id on the worker service. Until it is
+   set, the picker is delivered as the interactive list described above.
 
 The flow is created as a draft and sent with `mode=draft`, so only people with a
 role on your Meta app can open it — which is what you want while testing.
@@ -235,7 +251,7 @@ What changes vs. local:
 | `QUEUE_BACKEND` | `redis` |
 | `DATABASE_URL` | `${{Postgres.DATABASE_URL}}` |
 | `REDIS_URL` | `${{Redis.REDIS_URL}}` |
-| `WA_PAST_ITEMS_FLOW_ID` | flow id from `scripts/setup_flow.py` (worker only) |
+| `WA_PAST_ITEMS_FLOW_ID` | flow id from `scripts/setup_flow.py` (worker only). Leave empty to use the interactive list instead |
 | `WA_BUSINESS_ACCOUNT_ID` | Meta's WhatsApp Manager -> WhatsApp Accounts (only needed to run `scripts/setup_flow.py`; not used by the running services) |
 
 The web service additionally gets `PORT` injected automatically by Railway.

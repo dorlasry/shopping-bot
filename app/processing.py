@@ -113,8 +113,15 @@ def _handle_text(wa: WhatsApp, phone: str, name: str, text: str) -> None:
 
 def _process_selection(wa: WhatsApp, job: IncomingJob) -> None:
     data = job.callback_data or ""
-    if not data.startswith("buy:"):
-        return
+    if data.startswith("buy:"):
+        _process_buy(wa, job, data)
+    elif data.startswith("readd:"):
+        _process_readd(wa, job, data)
+    else:
+        logger.warning("unknown selection callback data: %r", data)
+
+
+def _process_buy(wa: WhatsApp, job: IncomingJob, data: str) -> None:
     try:
         item_id = int(data.split(":", 1)[1])
     except (ValueError, IndexError):
@@ -129,6 +136,34 @@ def _process_selection(wa: WhatsApp, job: IncomingJob) -> None:
             return
         wa.send_message(to=job.phone, text=f"סימנתי שנקנה: {item.text} ✓")
         _send_list(wa, job.phone, session, user)
+
+
+def _process_readd(wa: WhatsApp, job: IncomingJob, data: str) -> None:
+    """Add back an item picked from the past-items list, then offer the rest.
+
+    The item just added is now needed, so the query drops it from the refreshed
+    picker on its own — tapping through several in a row needs no bookkeeping.
+    """
+    text = data.split(":", 1)[1].strip()
+    if not text:
+        logger.warning("empty readd callback data: %r", data)
+        return
+
+    with get_session() as session:
+        user = repo.get_or_create_user(session, job.phone, job.name)
+        result = handle_intent(session, user, ParsedIntent(action="add", items=[text]))
+        if result.reply_text:
+            wa.send_message(to=job.phone, text=result.reply_text)
+
+        remaining = _past_item_texts(session, user, wa_msg.MAX_PAST_LISTED)
+        if not remaining:
+            # An empty picker would be a dead end; show what is on the list now.
+            _send_list(wa, job.phone, session, user)
+            return
+        # A readd: callback can only come from a list row (the Flow has no such
+        # callback), so the refreshed picker is always the list regardless of
+        # settings.wa_past_items_flow_id.
+        _send_past_items_list(wa, job.phone, remaining)
 
 
 def _process_button(wa: WhatsApp, job: IncomingJob) -> None:
@@ -198,38 +233,54 @@ def _send_list(wa: WhatsApp, phone: str, session: Session, user: User) -> None:
 
 
 def _send_past_items(wa: WhatsApp, phone: str, session: Session, user: User) -> None:
-    """Send the past-items Flow, pre-filled with what the family bought before.
+    """Offer items the family bought before, so they can be added again.
 
-    The flow is static: its options travel with this message, so there is no
-    endpoint for Meta to call back into.
+    Sent as a Flow when a flow id is configured, otherwise as an interactive
+    list. The list needs no setup and works on accounts where Meta refuses to
+    send Flows, so there is always a working path.
     """
-    if not settings.wa_past_items_flow_id:
-        _send_final(wa, phone, "הפיצ'ר הזה עדיין לא מוכן 🙏")
+    use_flow = bool(settings.wa_past_items_flow_id)
+    past = _past_item_texts(
+        session,
+        user,
+        flow_msg.MAX_PAST_ITEMS if use_flow else wa_msg.MAX_PAST_LISTED,
+    )
+
+    if use_flow and past:
+        wa.send_message(
+            to=phone,
+            text="הנה מה שקניתם בעבר — בחרו מה להוסיף 👇",
+            buttons=FlowButton(
+                title="בחרו פריטים",
+                flow_id=settings.wa_past_items_flow_id,
+                flow_action_type=FlowActionType.NAVIGATE,
+                flow_action_screen=flow_msg.SCREEN_ID,
+                flow_action_payload=flow_msg.build_items_payload(past),
+                mode=FlowStatus.DRAFT,
+            ),
+        )
         return
 
+    # Also the empty-history path for the Flow: the builder owns that message,
+    # so it reads the same whichever delivery is configured.
+    _send_past_items_list(wa, phone, past)
+
+
+def _send_past_items_list(wa: WhatsApp, phone: str, texts: list[str]) -> None:
+    """Send the past-items picker as an interactive list."""
+    body, section_list = wa_msg.build_past_items_message(texts)
+    if section_list is None:
+        _send_final(wa, phone, body)
+    else:
+        wa.send_message(to=phone, text=body, buttons=section_list)
+
+
+def _past_item_texts(session: Session, user: User, limit: int) -> list[str]:
+    """Texts the family bought before, minus whatever is already on the list."""
     active_list = repo.get_active_list(session, user.family_id)
     needed = {item.text for item in repo.get_needed_items(session, active_list.id)}
-    past = repo.get_past_bought_items(
-        session,
-        user.family_id,
-        exclude_texts=needed,
-        limit=flow_msg.MAX_PAST_ITEMS,
-    )
-    if not past:
-        _send_final(wa, phone, "אין עדיין היסטוריה של קניות 🤷 קנו משהו קודם.")
-        return
-
-    wa.send_message(
-        to=phone,
-        text="הנה מה שקניתם בעבר — בחרו מה להוסיף 👇",
-        buttons=FlowButton(
-            title="בחרו פריטים",
-            flow_id=settings.wa_past_items_flow_id,
-            flow_action_type=FlowActionType.NAVIGATE,
-            flow_action_screen=flow_msg.SCREEN_ID,
-            flow_action_payload=flow_msg.build_items_payload(past),
-            mode=FlowStatus.DRAFT,
-        ),
+    return repo.get_past_bought_items(
+        session, user.family_id, exclude_texts=needed, limit=limit
     )
 
 
