@@ -19,6 +19,7 @@ from app.domain.models import Item
 
 LIST_BUTTON_TITLE = "סמן שנקנה"  # must be <= 20 chars
 PAST_BUTTON_TITLE = "הוסיפו לרשימה"  # must be <= 20 chars
+PAST_ITEMS_BUTTON_TITLE = "הוסף פריטים קודמים"  # must be <= 20 chars
 MAX_ROWS = 10
 
 # How many past items the picker names in the body text. Only the first
@@ -107,6 +108,15 @@ def quick_command_buttons() -> list[Button]:
         Button(title="פריטים קודמים", callback_data="cmd:past_items"),
         Button(title="עזרה", callback_data="cmd:help"),
     ]
+
+
+def past_items_button() -> Button:
+    """The shortcut into the past-items picker.
+
+    Sent on its own message: a shopping list already occupies that
+    message's single interactive slot, so a reply button cannot join it.
+    """
+    return Button(title=PAST_ITEMS_BUTTON_TITLE, callback_data="cmd:past_items")
 
 
 def truncate(text: str, limit: int) -> str:

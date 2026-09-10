@@ -32,6 +32,9 @@ from app.services.parser import parse_message
 
 logger = get_logger(__name__)
 
+# Carries the past-items shortcut button that cannot ride on the list itself.
+PAST_ITEMS_PROMPT = "רוצים להוסיף משהו שקניתם בעבר? 👇"
+
 
 def process_job(wa: WhatsApp, job: IncomingJob) -> None:
     _indicate_typing(wa, job)
@@ -227,9 +230,19 @@ def _send_list(wa: WhatsApp, phone: str, session: Session, user: User) -> None:
     needed = repo.get_needed_items(session, active_list.id)
     body, section_list = wa_msg.build_list_message(needed)
     if section_list is None:
+        # The empty-list reply already ends with the quick buttons, and those
+        # include the past-items shortcut.
         _send_final(wa, phone, body)
-    else:
-        wa.send_message(to=phone, text=body, buttons=section_list)
+        return
+
+    wa.send_message(to=phone, text=body, buttons=section_list)
+    # The list has used this message's one interactive slot, so the shortcut
+    # needs its own message to appear as a tappable button under the list.
+    wa.send_message(
+        to=phone,
+        text=PAST_ITEMS_PROMPT,
+        buttons=[wa_msg.past_items_button()],
+    )
 
 
 def _send_past_items(wa: WhatsApp, phone: str, session: Session, user: User) -> None:
