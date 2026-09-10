@@ -19,11 +19,8 @@ from app.domain.models import Item
 
 LIST_BUTTON_TITLE = "סמן שנקנה"  # must be <= 20 chars
 PAST_BUTTON_TITLE = "הוסיפו לרשימה"  # must be <= 20 chars
-PAST_ITEMS_ROW_TITLE = "פריטים קודמים"  # must be <= 24 chars
+PAST_ITEMS_BUTTON_TITLE = "הוסף פריטים קודמים"  # must be <= 20 chars
 MAX_ROWS = 10
-
-# The shopping list spends one of its ten rows on the past-items shortcut.
-MAX_ITEM_ROWS = MAX_ROWS - 1
 
 # How many past items the picker names in the body text. Only the first
 # MAX_ROWS of them are tappable; the rest can be added by typing.
@@ -46,13 +43,12 @@ def build_list_message(items: list[Item]) -> tuple[str, SectionList | None]:
     lines = [f"{idx}. {item.text}" for idx, item in enumerate(items, start=1)]
     body = "🛒 הרשימה שלכם:\n" + "\n".join(lines)
 
-    # The cap is 10 rows across ALL sections, and the last one is spent on the
-    # past-items shortcut, so items get MAX_ITEM_ROWS. The rest stay readable
-    # above and can be marked by voice/text.
-    tappable = items[:MAX_ITEM_ROWS]
-    if len(items) > MAX_ITEM_ROWS:
+    # WhatsApp interactive lists cap at 10 rows, so only the first 10 are tappable.
+    # Items beyond that are still listed above and can be marked by voice/text.
+    tappable = items[:MAX_ROWS]
+    if len(items) > MAX_ROWS:
         body += (
-            f"\n\nאפשר להקיש לסימון על {MAX_ITEM_ROWS} הראשונים, "
+            f"\n\nאפשר להקיש לסימון על {MAX_ROWS} הראשונים, "
             'או פשוט לומר "קניתי <שם הפריט>" לכל פריט אחר.'
         )
     else:
@@ -64,22 +60,9 @@ def build_list_message(items: list[Item]) -> tuple[str, SectionList | None]:
         SectionRow(title=truncate(item.text, 24), callback_data=f"buy:{item.id}")
         for item in tappable
     ]
-    sections = [Section(title="לקנות", rows=rows), _past_items_section()]
+    section = Section(title="לקנות", rows=rows)
 
-    return body, SectionList(button_title=LIST_BUTTON_TITLE, sections=sections)
-
-
-def _past_items_section() -> Section:
-    """A shortcut row into the past-items picker.
-
-    Only one interactive component fits in a WhatsApp message, and the list
-    takes it — so the shortcut rides inside the list itself rather than as a
-    reply button, keeping פריטים קודמים one tap away after every action.
-    """
-    return Section(
-        title="עוד",
-        rows=[SectionRow(title=PAST_ITEMS_ROW_TITLE, callback_data="cmd:past_items")],
-    )
+    return body, SectionList(button_title=LIST_BUTTON_TITLE, sections=[section])
 
 
 def build_past_items_message(texts: list[str]) -> tuple[str, SectionList | None]:
@@ -125,6 +108,15 @@ def quick_command_buttons() -> list[Button]:
         Button(title="פריטים קודמים", callback_data="cmd:past_items"),
         Button(title="עזרה", callback_data="cmd:help"),
     ]
+
+
+def past_items_button() -> Button:
+    """The shortcut into the past-items picker.
+
+    Sent on its own message: a shopping list already occupies that
+    message's single interactive slot, so a reply button cannot join it.
+    """
+    return Button(title=PAST_ITEMS_BUTTON_TITLE, callback_data="cmd:past_items")
 
 
 def truncate(text: str, limit: int) -> str:
