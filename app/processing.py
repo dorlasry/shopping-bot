@@ -117,6 +117,10 @@ def _process_selection(wa: WhatsApp, job: IncomingJob) -> None:
         _process_buy(wa, job, data)
     elif data.startswith("readd:"):
         _process_readd(wa, job, data)
+    elif data.startswith("cmd:"):
+        # The shopping list carries a shortcut row into the past-items picker,
+        # so a command can arrive as a row tap as well as a reply button.
+        _process_button(wa, job)
     else:
         logger.warning("unknown selection callback data: %r", data)
 

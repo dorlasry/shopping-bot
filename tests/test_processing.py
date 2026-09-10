@@ -419,3 +419,26 @@ def test_unknown_selection_prefix_sends_nothing(session):
     processing.process_job(fake_wa, job)
 
     assert fake_wa.sent == []
+
+
+def test_past_items_row_in_the_list_opens_the_picker(monkeypatch, session):
+    """The shortcut row arrives as a selection, not a reply button."""
+    monkeypatch.setattr(processing.settings, "wa_past_items_flow_id", "")
+    monkeypatch.setattr(
+        processing.repo, "get_past_bought_items", lambda *a, **k: ["חלב"]
+    )
+    fake_wa = FakeWhatsApp()
+    job = IncomingJob(
+        kind="selection",
+        phone="972500000040",
+        name="Tester",
+        message_id="wamid.40",
+        callback_data="cmd:past_items",
+    )
+
+    processing.process_job(fake_wa, job)
+
+    assert len(fake_wa.sent) == 1
+    section = fake_wa.sent[0]["buttons"]
+    assert isinstance(section, SectionList)
+    assert [r.callback_data for r in section.sections[0].rows] == ["readd:חלב"]
