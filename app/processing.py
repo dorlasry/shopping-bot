@@ -160,8 +160,10 @@ def _process_readd(wa: WhatsApp, job: IncomingJob, data: str) -> None:
             # An empty picker would be a dead end; show what is on the list now.
             _send_list(wa, job.phone, session, user)
             return
-        body, section_list = wa_msg.build_past_items_message(remaining)
-        wa.send_message(to=job.phone, text=body, buttons=section_list)
+        # A readd: callback can only come from a list row (the Flow has no such
+        # callback), so the refreshed picker is always the list regardless of
+        # settings.wa_past_items_flow_id.
+        _send_past_items_list(wa, job.phone, remaining)
 
 
 def _process_button(wa: WhatsApp, job: IncomingJob) -> None:
@@ -261,7 +263,12 @@ def _send_past_items(wa: WhatsApp, phone: str, session: Session, user: User) -> 
 
     # Also the empty-history path for the Flow: the builder owns that message,
     # so it reads the same whichever delivery is configured.
-    body, section_list = wa_msg.build_past_items_message(past)
+    _send_past_items_list(wa, phone, past)
+
+
+def _send_past_items_list(wa: WhatsApp, phone: str, texts: list[str]) -> None:
+    """Send the past-items picker as an interactive list."""
+    body, section_list = wa_msg.build_past_items_message(texts)
     if section_list is None:
         _send_final(wa, phone, body)
     else:

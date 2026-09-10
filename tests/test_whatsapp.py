@@ -64,3 +64,12 @@ def test_past_items_message_skips_item_too_long_for_a_callback():
     assert [r.callback_data for r in section.sections[0].rows] == ["readd:חלב"]
     # It is still offered in the body, where it can be added by typing.
     assert huge in body
+
+
+def test_past_items_message_without_any_usable_row():
+    huge = "א" * 200
+
+    body, section = build_past_items_message([huge])
+
+    assert section is None
+    assert huge in body

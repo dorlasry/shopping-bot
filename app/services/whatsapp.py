@@ -8,6 +8,7 @@ WhatsApp constraints baked in here:
   - An interactive list message allows at most 10 rows total.
   - A SectionRow title is capped at 24 chars; the list button title at 20.
   - Reply buttons: at most 3 per message.
+  - A SectionRow's callback id is capped at 200 chars.
 """
 
 from __future__ import annotations

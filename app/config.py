@@ -44,9 +44,9 @@ class Settings(BaseSettings):
     redis_url: str = "redis://localhost:6379/0"
     queue_key: str = "shopping:incoming"
 
-    # WhatsApp Flow for the past-items picker. Empty disables the feature
-    # (the bot replies that it isn't ready yet) — set it to the flow id
-    # printed by scripts/setup_flow.py.
+    # WhatsApp Flow for the past-items picker. Empty delivers the picker as
+    # an interactive list message instead — set it to the flow id printed by
+    # scripts/setup_flow.py to switch to the Flow.
     wa_past_items_flow_id: str = ""
 
     # Misc
